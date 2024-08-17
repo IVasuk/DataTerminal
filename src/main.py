@@ -71,9 +71,6 @@ def update_indicator(label):
         css_str = """
          #label_time {
             background: #FF0000;
-            font-family: 'Arial 10';
-            font-weight: normal;
-            font-size: 35px;
         }"""
 
         sc.remove_class('green')
@@ -82,9 +79,6 @@ def update_indicator(label):
         css_str = """
          #label_time {
              background: #008000;
-             font-family: 'Arial 10';
-             font-weight: normal;
-             font-size: 35px;
          }"""
 
         sc.remove_class('red')
@@ -114,28 +108,18 @@ def main():
     #label_document_number {
         background: #000000;
         color: #FFFFFF;
-        font-family: 'Arial 10';
-        font-weight: normal;
-        font-size: 25px;
     }
     #label_sername {
         background: #000000;
         color: #FFFFFF;
-        font-family: 'Arial 10';
-        font-weight: normal;
-        font-size: 25px;
     }
     #label_info {
         background: #000000;
         color: #FFFFFF;
-        font-family: 'Arial 10';
-        font-weight: normal;
-        font-size: 25px;
     }
     #label_time {
-        font-family: 'Arial 10';
-        font-weight: normal;
-        font-size: 35px;
+        background: #000000;
+        color: #FFFFFF;
     }"""
 
     global css_provider

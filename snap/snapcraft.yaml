@@ -10,22 +10,16 @@ base: core22
 apps:
   data-terminal:
     extensions: [gnome]
-    command-chain: &_command-chain
-      - bin/wayland-launch
     command: &_command bin/wrappers/data-terminal-wrapper
     plugs: &_plugs
-      - opengl
-      - wayland
       - home
       - network-bind
   daemon:
     daemon: simple
     restart-delay: 3s
     restart-condition: always
-    command-chain: *_command-chain
     command: *_command
     plugs: *_plugs
-    environment: *_environment
 
 parts:
   wrapper:
@@ -44,45 +38,8 @@ parts:
     plugin: python
     python-packages: [pip, setuptools, wheel, future, pycairo, pygobject, psycopg2-binary, argparse]
     source: .
-#    build-packages:
-#      - libgdk-pixbuf2.0-0
-#      - librsvg2-common
-#      - shared-mime-info
-#    override-build: |
-#      # Update mime database
-#      update-mime-database ${SNAPCRAFT_PART_INSTALL}/usr/share/mime
-#    organize:
-#      bin/management-script: /bin/scripts/management-script
-#      bin/data-terminal-wrapper: /bin/wrappers/data-terminal-wrapper
-#    stage-packages:
-#      - librsvg2-common
-#      - gsettings-desktop-schemas
-#      - libglib2.0-bin
-#      - python3-appdirs
-#      - libgdk-pixbuf2.0-0
-#      - libcanberra-gtk3-module
-#      - gir1.2-gtk-3.0    
-#      - gir1.2-notify-0.7
- #     - python3-gi
- #     - python3-gi-cairo 
- #     - gobject-introspection
- #      - python3-psycopg2
-
-  # Some utility scripts for setting up the Wayland environment
-  wayland-launch:
-    plugin: dump
-    source: wayland-launch
-    override-build: |
-      # The plugs needed to run Wayland. (wayland-launch checks them, setup.sh connects them)
-      # You may add further plugs here if you want these options
-      PLUGS="opengl wayland graphics-core20"
-      sed --in-place "s/%PLUGS%/$PLUGS/g" $SNAPCRAFT_PART_BUILD/bin/wayland-launch
-      sed --in-place "s/%PLUGS%/$PLUGS/g" $SNAPCRAFT_PART_BUILD/bin/setup.sh
-      craftctl default
-    stage-packages:
-      - inotify-tools
 
 architectures:
   - build-on: amd64
-#  - build-on: arm64
+  - build-on: arm64
 #  - build-on: armhf  
