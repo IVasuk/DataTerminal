@@ -116,7 +116,7 @@ parts:
 #    organize:
 #      bin/management-script: /bin/scripts/management-script
 #      bin/data-terminal-wrapper: /bin/wrappers/data-terminal-wrapper
-    stage-packages:
+#    stage-packages:
 #      - librsvg2-common
 #      - gsettings-desktop-schemas
 #      - libglib2.0-bin
