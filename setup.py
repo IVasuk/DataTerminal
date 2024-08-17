@@ -10,7 +10,7 @@ setup(
     packages = ['src'],
     package_data={'src': ['description.txt','ui/*']
                  },
-    install_requires=['future'],
+    install_requires=['future','pycairo','pygobject'],
 #    scripts=["src/wrappers/data-terminal-wrapper","src/scripts/management-script"],
 
     entry_points = {
