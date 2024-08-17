@@ -104,7 +104,7 @@ parts:
     
   data-terminal:
     plugin: python
-    python-packages: [pip, setuptools, wheel, future, pycairo, pygobject, psycopg2-binary, psycopg2, argparse]
+    python-packages: [pip, setuptools, wheel, future, pycairo, pygobject, psycopg2-binary, argparse]
     source: .
 #    build-packages:
 #       - psycopg2-binary
