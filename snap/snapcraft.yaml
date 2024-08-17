@@ -105,6 +105,9 @@ parts:
     plugin: python
     source: .
     build-packages:
+      - libcairo2-dev
+      - pkg-config
+      - python3-dev
       - libgdk-pixbuf2.0-0
       - librsvg2-common
       - shared-mime-info
