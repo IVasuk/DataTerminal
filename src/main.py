@@ -146,7 +146,7 @@ def main():
     style_context = Gtk.StyleContext()
     style_context.add_provider_for_screen(Gdk.Screen.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     window = builder.get_object('window_main')
-#    window.maximize()
+    window.maximize()
     window.show_all()
 
     try:
