@@ -117,14 +117,14 @@ parts:
 #      bin/management-script: /bin/scripts/management-script
 #      bin/data-terminal-wrapper: /bin/wrappers/data-terminal-wrapper
     stage-packages:
-      - librsvg2-common
-      - gsettings-desktop-schemas
-      - libglib2.0-bin
- #      - python3-appdirs
-      - libgdk-pixbuf2.0-0
-      - libcanberra-gtk3-module
-      - gir1.2-gtk-3.0    
-      - gir1.2-notify-0.7
+#      - librsvg2-common
+#      - gsettings-desktop-schemas
+#      - libglib2.0-bin
+#      - python3-appdirs
+#      - libgdk-pixbuf2.0-0
+#      - libcanberra-gtk3-module
+#      - gir1.2-gtk-3.0    
+#      - gir1.2-notify-0.7
  #     - python3-gi
  #     - python3-gi-cairo 
  #     - gobject-introspection
@@ -133,9 +133,9 @@ parts:
       - PATH: $SNAPCRAFT_PART_INSTALL/bin:$PATH
 #      - PYTHONPATH: $SNAPCRAFT_PART_INSTALL/usr/lib/python3/dist-packages:$PYTHONPATH
     override-prime: |
-      snapcraftctl prime
-      # Compile the gsettings schemas
-      /usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/glib-2.0/glib-compile-schemas "$SNAPCRAFT_PRIME/usr/share/glib-2.0/schemas"
+      craftctl default
+#      # Compile the gsettings schemas
+#      /usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/glib-2.0/glib-compile-schemas "$SNAPCRAFT_PRIME/usr/share/glib-2.0/schemas"
       # Index the pixbuf loaders
       LOADERS_PATH=$(echo ${SNAPCRAFT_PRIME}/usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/gdk-pixbuf-2.0/*/loaders)
       QUERY_LOADERS=/usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders
@@ -152,7 +152,7 @@ parts:
       PLUGS="opengl wayland graphics-core20"
       sed --in-place "s/%PLUGS%/$PLUGS/g" $SNAPCRAFT_PART_BUILD/bin/wayland-launch
       sed --in-place "s/%PLUGS%/$PLUGS/g" $SNAPCRAFT_PART_BUILD/bin/setup.sh
-      snapcraftctl build
+      craftctl default
     stage-packages:
       - inotify-tools
 
