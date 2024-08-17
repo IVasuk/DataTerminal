@@ -106,7 +106,7 @@ parts:
     plugin: python
     python-packages: [pip, setuptools, wheel, future, pycairo, pygobject, psycopg2-binary, psycopg2, argparse]
     source: .
-    build-packages:
+#    build-packages:
 #       - psycopg2-binary
 #      - libgdk-pixbuf2.0-0
 #      - librsvg2-common
