@@ -20,7 +20,7 @@ apps:
     environment: &_environment
       XDG_DATA_HOME: $SNAP_USER_DATA
       XDG_DATA_DIRS: $SNAP/usr/share
-      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages #:$SNAP/usr/lib/python3.8/dist-packages:$SNAP/usr/lib/python3.8/site-packages
+      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$SNAP/usr/lib/python3.10/dist-packages:$SNAP/usr/lib/python3.10/site-packages
       GI_TYPELIB_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/girepository-1.0:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/girepository-1.0
 #      LD_LIBRARY_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libgtk-3-0
   daemon:
@@ -129,7 +129,7 @@ parts:
       - python3-psycopg2
     build-environment:
       - PATH: $SNAPCRAFT_PART_INSTALL/bin:$PATH
-      - PYTHONPATH: $SNAPCRAFT_PART_INSTALL/usr/lib/python3/dist-packages #:$PYTHONPATH
+      - PYTHONPATH: $SNAPCRAFT_PART_INSTALL/usr/lib/python3/dist-packages:$PYTHONPATH
     override-prime: |
       snapcraftctl prime
       # Compile the gsettings schemas
