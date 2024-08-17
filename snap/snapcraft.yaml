@@ -108,7 +108,7 @@ parts:
       - libcairo2-dev
       - pkg-config
       - python3-dev
-      - gobject-introspection
+      - gobject-introspection-1.0
       - libgdk-pixbuf2.0-0
       - librsvg2-common
       - shared-mime-info
