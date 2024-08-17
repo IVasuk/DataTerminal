@@ -111,9 +111,23 @@ def main():
     builder.connect_signals(Handler())
 
     css_str = """
+    #label_document_number {
+        background: #000000;
+        color: #FFFFFF;
+        font-family: 'Arial 10';
+        font-weight: normal;
+        font-size: 25px;
+    }
+    #label_sername {
+        background: #000000;
+        color: #FFFFFF;
+        font-family: 'Arial 10';
+        font-weight: normal;
+        font-size: 25px;
+    }
     #label_info {
-        background: #FFFCDC;
-        color: #000000;
+        background: #000000;
+        color: #FFFFFF;
         font-family: 'Arial 10';
         font-weight: normal;
         font-size: 25px;
@@ -132,7 +146,7 @@ def main():
     style_context = Gtk.StyleContext()
     style_context.add_provider_for_screen(Gdk.Screen.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     window = builder.get_object('window_main')
-    window.maximize()
+#    window.maximize()
     window.show_all()
 
     try:
