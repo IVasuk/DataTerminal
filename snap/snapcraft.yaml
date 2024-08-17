@@ -21,7 +21,7 @@ apps:
       XDG_DATA_HOME: $SNAP_USER_DATA
       XDG_DATA_DIRS: $SNAP/usr/share
 #      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$SNAP/usr/lib/python3.10/dist-packages:$SNAP/usr/lib/python3.10/site-packages
-      GI_TYPELIB_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/girepository-1.0:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/girepository-1.0
+#      GI_TYPELIB_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/girepository-1.0:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/girepository-1.0
 #      LD_LIBRARY_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libgtk-3-0
   daemon:
     daemon: simple
@@ -102,13 +102,11 @@ parts:
       management-script: bin/scripts/management-script
     
   data-terminal:
+    extensions: [gnome]
     plugin: python
+    python-packages: [pip, setuptools, wheel, future, pycairo, pygobject]
     source: .
     build-packages:
-      - libcairo2-dev
-      - pkg-config
-      - python3-dev
-      - gobject-introspection
       - libgdk-pixbuf2.0-0
       - librsvg2-common
       - shared-mime-info
@@ -131,7 +129,6 @@ parts:
       - python3-gi-cairo 
       - gobject-introspection
       - python3-psycopg2
-      - python3-pip
     build-environment:
       - PATH: $SNAPCRAFT_PART_INSTALL/bin:$PATH
 #      - PYTHONPATH: $SNAPCRAFT_PART_INSTALL/usr/lib/python3/dist-packages:$PYTHONPATH
