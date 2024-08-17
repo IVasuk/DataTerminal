@@ -1,0 +1,103 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# source the management script
+. "$SNAP/bin/scripts/management-script"
+
+handle_adress_config()
+{
+        adress="$(dbms_adress)"
+
+        # Validate DBMS adress
+        if [ -z "$adress" ]; then
+                echo "adress can't be empty" >&2
+                return 1
+        fi
+
+        # run function from management script
+        set_dbms_adress "$adress"
+}
+
+handle_port_config()
+{
+        port="$(dbms_port)"
+
+        # Validate DBMS port
+        if ! expr "$port" : '^[0-9]\+$' > /dev/null; then
+                echo "\"$port\" is not a valid TCP port" >&2
+                return 1
+        fi
+
+       # run function from management script
+        set_dbms_port "$port"
+}
+
+handle_database_config()
+{
+        database="$(dbms_database)"
+
+        # Validate DBMS database
+        if [ -z "$database" ]; then
+                echo "database name can't be empty" >&2
+                return 1
+        fi
+
+        # run function from management script
+        set_dbms_database "$database"
+}
+
+handle_user_config()
+{
+        user="$(dbms_user)"
+
+        # Validate DBMS user
+        if [ -z "$user" ]; then
+                echo "user name can't be empty" >&2
+                return 1
+        fi
+
+        # run function from management script
+        set_dbms_user "$user"
+}
+
+handle_password_config()
+{
+        password="$(dbms_password)"
+
+        # Validate DBMS password
+        if [ -z "$password" ]; then
+                echo "password can't be empty" >&2
+                return 1
+        fi
+
+        # run function from management script
+        set_dbms_password "$password"
+}
+
+handle_port_config
+handle_adress_config
+handle_database_config
+handle_user_config
+handle_password_config
+
+# Restart data-terminal to apply new config
+snapctl restart data-terminal
+
+daemon=$(snapctl get daemon)
+case "$daemon" in
+  true)
+    # start the daemon
+    if snapctl services "$SNAP_INSTANCE_NAME" | grep -q inactive; then
+      snapctl start --enable "$SNAP_INSTANCE_NAME" 2>&1 || true
+    fi
+    ;;
+  false)
+    # stop the daemon
+        snapctl stop --disable "$SNAP_INSTANCE_NAME" 2>&1 || true
+    ;;
+  *)
+    echo "ERROR: Set 'daemon' to one of true|false"
+    exit 1
+    ;;
+esac

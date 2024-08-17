@@ -1,0 +1,82 @@
+#!/bin/bash
+
+DEFAULT_DBMS_ADRESS="localhost"
+DEFAULT_DBMS_PORT="5432"
+DEFAULT_DBMS_DATABASE="dataterminal"
+DEFAULT_DBMS_USER="dataterminal"
+DEFAULT_DBMS_PASSWORD="terminal"
+
+dbms_adress()
+{
+        adress="$(snapctl get dbms.adress)"
+        if [ -z "$adress" ]; then
+        	adress="$DEFAULT_DBMS_ADRESS"
+		set_dbms_adress "$adress"
+        fi
+        echo "$adress"
+}
+
+set_dbms_adress()
+{
+        snapctl set dbms.adress="$1"
+}
+
+dbms_port()
+{
+        port="$(snapctl get dbms.port)"
+        if [ -z "$port" ]; then
+        	port="$DEFAULT_DBMS_PORT"
+		set_dbms_port "$port"
+        fi
+        echo "$port"
+}
+
+set_dbms_port()
+{
+        snapctl set dbms.port="$1"
+}
+
+dbms_database()
+{
+        database="$(snapctl get dbms.database)"
+        if [ -z "$database" ]; then
+        	database="$DEFAULT_DBMS_DATABASE"
+		set_dbms_database "$database"
+        fi
+        echo "$database"
+}
+
+set_dbms_database()
+{
+        snapctl set dbms.database="$1"
+}
+
+dbms_user()
+{
+        user="$(snapctl get dbms.user)"
+        if [ -z "$user" ]; then
+        	user="$DEFAULT_DBMS_USER"
+		set_dbms_user "$user"
+        fi
+        echo "$user"
+}
+
+set_dbms_user()
+{
+        snapctl set dbms.user="$1"
+}
+
+dbms_password()
+{
+        password="$(snapctl get dbms.password)"
+        if [ -z "$password" ]; then
+        	password="$DEFAULT_DBMS_PASSWORD"
+		set_dbms_password "$password"
+        fi
+        echo "$password"
+}
+
+set_dbms_password()
+{
+        snapctl set dbms.password="$1"
+}
