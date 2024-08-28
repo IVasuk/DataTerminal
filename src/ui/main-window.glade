@@ -10,6 +10,7 @@
     <property name="hide-titlebar-when-maximized">True</property>
     <property name="decorated">False</property>
     <signal name="destroy" handler="on_destroy" swapped="no"/>
+    <signal name="key-release-event" handler="on_key_release_event" swapped="no"/>
     <child>
       <object class="GtkBox">
         <property name="visible">True</property>
@@ -23,6 +24,7 @@
             <property name="label" translatable="yes">Скануйте свій код</property>
             <property name="justify">center</property>
             <property name="wrap">True</property>
+            <property name="ellipsize">start</property>
             <attributes>
               <attribute name="size" value="26000"/>
             </attributes>
@@ -43,7 +45,6 @@
                 <property name="name">label_document_number</property>
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
-                <property name="label" translatable="yes">84093/03</property>
                 <property name="justify">center</property>
                 <property name="wrap">True</property>
                 <attributes>
@@ -61,8 +62,6 @@
                 <property name="name">label_sername</property>
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
-                <property name="label" translatable="yes">Мракобесов Ч.П.
-Дуримар О.Н.</property>
                 <property name="justify">center</property>
                 <attributes>
                   <attribute name="size" value="25000"/>
