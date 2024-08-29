@@ -18,14 +18,65 @@ CURRDIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class BarCodeObservable():
-    def __init__(self, label=None):
+    def __init__(self, label,label_time):
         self.label = label
+        self.label_time = label_time
         self.status = False
         self.barcode = []
         self.observers = []
 
     def set_label(self, label):
         self.label = label
+
+    def set_label_time_background(self):
+        sc = (self.label_time.get_style_context())
+
+        css_str = ""
+
+        if DATAMODEL.status == 2:
+            css_str = """
+                #label_time {
+                background: #008000;
+            }"""
+
+            if sc.has_class('black'):
+                sc.remove_class('black')
+
+            if sc.has_class('red'):
+                sc.remove_class('red')
+
+            sc.add_class('green')
+        elif DATAMODEL.status == 3:
+            css_str = """
+             #label_time {
+                 background: #FF0000;
+             }"""
+
+            if sc.has_class('black'):
+                sc.remove_class('black')
+
+            if sc.has_class('green'):
+                sc.remove_class('green')
+
+            sc.add_class('green')
+        else:
+            css_str = """
+             #label_time {
+                 background: #000000;
+             }"""
+
+            if sc.has_class('red'):
+                sc.remove_class('red')
+
+            if sc.has_class('green'):
+                sc.remove_class('green')
+
+            sc.add_class('black')
+
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(bytes(css_str, 'utf-8'))
+
+        sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
     def attach(self, observer):
         self.observers.append(observer)
@@ -40,7 +91,7 @@ class BarCodeObservable():
 
         if sc.has_class('red'):
             css_str = """
-                #label_info {
+                #"""+Gtk.Buildable.get_name(self.label)+""" {
                 background: #000000;
             }"""
 
@@ -56,8 +107,7 @@ class BarCodeObservable():
         self.reading_status = True
         self.barcode.append(value)
 
-        if self.label:
-            self.label.set_text(''.join(self.barcode))
+        self.label.set_text(''.join(self.barcode))
 
     def enter_barcode(self):
         res = False
@@ -75,11 +125,11 @@ class BarCodeObservable():
 
             if sc.has_class('black'):
                 css_str = """
-                    #label_info {
+                    #"""+Gtk.Buildable.get_name(self.label)+""" {
                     background: #FF0000;
                 }"""
 
-                sc.remove_class('green')
+                sc.remove_class('black')
 
             sc.add_class('red')
 
@@ -87,6 +137,11 @@ class BarCodeObservable():
             css_provider.load_from_data(bytes(css_str, 'utf-8'))
 
             sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+
+        for observer in self.observers:
+            observer.set_label_text()
+
+        self.set_label_time_background()
 
         self.reading_status = False
         self.barcode.clear()
@@ -113,54 +168,30 @@ class BarCodeObserver():
     def update(self, barcode):
         pass
 
+    def set_label_text(self):
+        pass
 
 class OperatorsObserver(BarCodeObserver):
     def update(self, barcode):
         res = DATAMODEL.set_operator(barcode)
 
-        self.label.set_text(DATAMODEL.str_operators())
-
         return res
 
+    def set_label_text(self):
+        self.label.set_text(DATAMODEL.str_operators())
 
 class DocumentObserver(BarCodeObserver):
     def update(self, barcode):
         res = DATAMODEL.set_document(barcode)
 
-        self.label.set_text(DATAMODEL.str_document())
-
         return res
+
+    def set_label_text(self):
+        self.label.set_text(DATAMODEL.str_document())
 
 class SpecialCodeObserver(BarCodeObserver):
     def update(self, barcode):
         res = DATAMODEL.set_specialcode(barcode)
-
-        sc = (self.label.get_style_context())
-
-        css_str = ""
-
-        if DATAMODEL.is_specialcode():
-            if sc.has_class('green'):
-                css_str = """
-                    #label_time {
-                    background: #FF0000;
-                }"""
-
-            sc.remove_class('green')
-            sc.add_class('red')
-        else:
-            css_str = """
-             #label_time {
-                 background: #008000;
-             }"""
-
-            sc.remove_class('red')
-            sc.add_class('green')
-
-        css_provider = Gtk.CssProvider()
-        css_provider.load_from_data(bytes(css_str, 'utf-8'))
-
-        sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
         return res
 
@@ -190,6 +221,9 @@ class DataModel:
 
     def del_operator(self, barcode):
         del self.operators[barcode]
+
+    def clear_operators(self):
+        self.operators.clear()
 
     def set_operator(self, barcode):
         if len(barcode) != 5:
@@ -233,9 +267,10 @@ class DataModel:
 
         res = False
 
-        if self.status == 2:
+        if self.status == 2 or self.status == 3:
             if self.document_present(barcode):
                 self.del_document()
+                self.clear_operators()
 
                 res = True
         elif self.status == 1:
@@ -284,14 +319,20 @@ class DataModel:
             elif not self.is_operators():
                 self.status = 0
         elif self.status == 2:
-            if not self.is_document():
+            if not self.is_operators():
+                self.status = 0
+            elif not self.is_document():
                 self.status = 1
             elif self.is_specialcode():
                 self.status = 3
 
                 self.set_starttime()
         elif self.status == 3:
-            if not self.is_specialcode():
+            if not self.is_operators():
+                self.status = 0
+            elif not self.is_document():
+                self.status = 1
+            elif not self.is_specialcode():
                 self.status = 2
 
                 self.set_starttime()
@@ -359,7 +400,7 @@ def update_indicator(label):
 
             label.set_text(f"{hours:02}:{minutes:02}:{seconds:02}")
         else:
-            label.set_text("00:00:00")
+            label.set_text(time.strftime("%H:%M:%S"))
     except:
         Gtk.main_quit()
 
@@ -378,7 +419,7 @@ def main():
 
     global BARCODEPUBLISHER
 
-    BARCODEPUBLISHER = BarCodeObservable(builder.get_object('label_info'))
+    BARCODEPUBLISHER = BarCodeObservable(builder.get_object('label_info'),builder.get_object('label_time'))
 
     operator_observer = OperatorsObserver(builder.get_object('label_sername'))
     document_observer = DocumentObserver(builder.get_object('label_document_number'))
@@ -402,7 +443,7 @@ def main():
         color: #FFFFFF;
     }
     #label_time {
-        background: #008000;
+        background: #000000;
         color: #FFFFFF;
     }"""
 
