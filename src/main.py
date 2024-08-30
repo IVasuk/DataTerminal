@@ -3,22 +3,23 @@
 import os
 import gi
 import threading
-import psycopg2
 import time
-import sys
 import argparse
+
+from metadata import MetaData, Reference, ReferenceOperators, ReferenceSpecialCodes
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('Notify', '0.7')
 
 from gi.repository import Gtk
 from gi.repository import Gdk
+from gi.repository import GLib
 
 CURRDIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class BarCodeObservable():
-    def __init__(self, label,label_time):
+    def __init__(self, label, label_time):
         self.label = label
         self.label_time = label_time
         self.status = False
@@ -87,22 +88,20 @@ class BarCodeObservable():
     def add_char(self, value):
         sc = (self.label.get_style_context())
 
-        css_str = ""
-
         if sc.has_class('red'):
             css_str = """
-                #"""+Gtk.Buildable.get_name(self.label)+""" {
+                #""" + Gtk.Buildable.get_name(self.label) + """ {
                 background: #000000;
             }"""
 
             sc.remove_class('red')
 
-        sc.add_class('black')
+            sc.add_class('black')
 
-        css_provider = Gtk.CssProvider()
-        css_provider.load_from_data(bytes(css_str, 'utf-8'))
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_data(bytes(css_str, 'utf-8'))
 
-        sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+            sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
         self.reading_status = True
         self.barcode.append(value)
@@ -112,8 +111,17 @@ class BarCodeObservable():
     def enter_barcode(self):
         res = False
 
+        if len(self.barcode) == 0:
+            return res
+
+        buf = f"{int(''.join(self.barcode)):032x}"
+
+#        buf = f"{int('19943413916626024953293160309520456708'):032x}"
+
+        id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
+
         for observer in self.observers:
-            if observer.update(''.join(self.barcode)):
+            if observer.update(id):
                 res = True
 
                 break
@@ -121,14 +129,12 @@ class BarCodeObservable():
         if not res:
             sc = (self.label.get_style_context())
 
-            css_str = ""
+            css_str = """
+                #""" + Gtk.Buildable.get_name(self.label) + """ {
+                background: #FF0000;
+            }"""
 
             if sc.has_class('black'):
-                css_str = """
-                    #"""+Gtk.Buildable.get_name(self.label)+""" {
-                    background: #FF0000;
-                }"""
-
                 sc.remove_class('black')
 
             sc.add_class('red')
@@ -161,7 +167,7 @@ class BarCodeObservable():
             self.label.set_text(label_text)
 
 
-class BarCodeObserver():
+class BarCodeObserver:
     def __init__(self, label=None):
         self.label = label
 
@@ -170,6 +176,7 @@ class BarCodeObserver():
 
     def set_label_text(self):
         pass
+
 
 class OperatorsObserver(BarCodeObserver):
     def update(self, barcode):
@@ -180,6 +187,7 @@ class OperatorsObserver(BarCodeObserver):
     def set_label_text(self):
         self.label.set_text(DATAMODEL.str_operators())
 
+
 class DocumentObserver(BarCodeObserver):
     def update(self, barcode):
         res = DATAMODEL.set_document(barcode)
@@ -189,11 +197,13 @@ class DocumentObserver(BarCodeObserver):
     def set_label_text(self):
         self.label.set_text(DATAMODEL.str_document())
 
+
 class SpecialCodeObserver(BarCodeObserver):
     def update(self, barcode):
         res = DATAMODEL.set_specialcode(barcode)
 
         return res
+
 
 class DataModel:
     def __init__(self):
@@ -217,29 +227,37 @@ class DataModel:
         return barcode in self.operators
 
     def add_operator(self, barcode):
-        self.operators[barcode] = 'Name: ' + barcode
+        res = False
+
+        ref_operators = ReferenceOperators()
+
+        if ref_operators.find(barcode):
+            self.operators[ref_operators.id] = ref_operators.name
+
+            res = True
+        else:
+            res = False
+
+        return res
 
     def del_operator(self, barcode):
         del self.operators[barcode]
+
+        return True
 
     def clear_operators(self):
         self.operators.clear()
 
     def set_operator(self, barcode):
-        if len(barcode) != 5:
-            return False
-
         res = False
 
         if self.status < 2:
             if self.operator_present(barcode):
-                self.del_operator(barcode)
+                res = self.del_operator(barcode)
             else:
-                self.add_operator(barcode)
+                res = self.add_operator(barcode)
 
             self.set_status()
-
-            res = True
 
         return res
 
@@ -259,7 +277,6 @@ class DataModel:
     def del_document(self):
         self.document_barcode = ''
         self.document_number = ''
-
 
     def set_document(self, barcode):
         if len(barcode) != 4:
@@ -291,7 +308,7 @@ class DataModel:
     def is_specialcode(self):
         return self.specialcode
 
-    def set_specialcode(self,barcode):
+    def set_specialcode(self, barcode):
         if len(barcode) != 6:
             return False
 
@@ -305,7 +322,6 @@ class DataModel:
             self.set_status()
 
         return res
-
 
     def set_status(self):
         if self.status == 0:
@@ -346,10 +362,9 @@ class Handler:
 
     def on_key_release_event(self, *args):
         ch = chr(args[1].keyval)
-
-        if ch.isalnum():
+        if ch.isdigit():
             BARCODEPUBLISHER.add_char(ch)
-        else:
+        elif args[1].keyval == Gdk.KEY_Tab:
             BARCODEPUBLISHER.enter_barcode()
 
 
@@ -367,7 +382,7 @@ class RepeatedTimer(object):
     def _run(self):
         self.is_running = False
         self.start()
-        self.function(*self.args, **self.kwargs)
+        GLib.idle_add(self.function, *self.args, **self.kwargs)
 
     def start(self):
         if not self.is_running:
@@ -390,7 +405,6 @@ def create_parser():
     parser.add_argument('-pas', '--password', required=False, type=str, default='terminal')
 
     return parser
-
 
 def update_indicator(label):
     try:
@@ -419,7 +433,7 @@ def main():
 
     global BARCODEPUBLISHER
 
-    BARCODEPUBLISHER = BarCodeObservable(builder.get_object('label_info'),builder.get_object('label_time'))
+    BARCODEPUBLISHER = BarCodeObservable(builder.get_object('label_info'), builder.get_object('label_time'))
 
     operator_observer = OperatorsObserver(builder.get_object('label_sername'))
     document_observer = DocumentObserver(builder.get_object('label_document_number'))
@@ -447,8 +461,6 @@ def main():
         color: #FFFFFF;
     }"""
 
-    global css_provider
-
     css_provider = Gtk.CssProvider()
     css_provider.load_from_data(bytes(css_str, 'utf-8'))
 
@@ -457,32 +469,37 @@ def main():
                                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     window = builder.get_object('window_main')
-    window.maximize()
+#    window.maximize()
     window.show_all()
 
-    try:
-        pg_conn = psycopg2.connect(dbname=namespace.database, user=namespace.user, password=namespace.password,
-                                   host=namespace.adress, port=namespace.port)
-        pg_conn.autocommit = True
-        pg_cursor = pg_conn.cursor()
-    except:
-        print("""Неможливо підключитися до бази даних:
-                adress:%s
-                port:%s
-                database:%s
-                user:%s
-                password:%s""" % (
-        namespace.adress, namespace.port, namespace.database, namespace.user, namespace.password))
-        exit()
+    # try:
+    #     pg_conn = psycopg2.connect(dbname=namespace.database, user=namespace.user, password=namespace.password,
+    #                                host=namespace.adress, port=namespace.port)
+    #     pg_conn.autocommit = True
+    #     pg_cursor = pg_conn.cursor()
+    # except:
+    #     print("""Неможливо підключитися до бази даних:
+    #             adress:%s
+    #             port:%s
+    #             database:%s
+    #             user:%s
+    #             password:%s""" % (
+    #         namespace.adress, namespace.port, namespace.database, namespace.user, namespace.password))
+    #     exit()
 
     rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'))  # it auto-starts, no need of rt.start()
 
     try:
+        MetaData.connect()
+
         Gtk.main()
     finally:
         rt.stop()  # better in a try/finally block to make sure the program ends!
-        pg_cursor.close()
-        pg_conn.close()
+
+        MetaData.disconnect()
+
+#        pg_cursor.close()
+#        pg_conn.close()
 
 
 if __name__ == '__main__':

@@ -1,6 +1,9 @@
 import argparse
 import psycopg2
 
+from collections import namedtuple
+from psycopg2.extras import NamedTupleCursor
+
 def print_ex(ex):
     print(type(ex))
     print(ex.args)
@@ -19,6 +22,76 @@ def execute_query(conn, sql_str, args=()):
 
         exit(1)
 
+class PostgresQL:
+    def __init__(self,**kwargs):
+        self.adress = kwargs['adress']
+        self.port = kwargs['port']
+        self.database = kwargs['database']
+        self.user = kwargs['user']
+        self.password = kwargs['password']
+        self.pg_conn = None
+
+
+    def connect(self):
+        try:
+            self.pg_conn = psycopg2.connect(dbname=self.database, user=self.user, password=self.password,
+                                       host=self.adress, port=self.port)
+            self.pg_conn.autocommit = True
+
+            return True
+        except Exception as ex:
+            print_ex(ex)
+
+            self.pg_conn = None
+
+            return False
+
+    def disconnect(self):
+        try:
+            self.pg_conn.close()
+
+            return True
+        except Exception as ex:
+            print_ex(ex)
+
+            return False
+
+    def execute_query(self,sql_str,values):
+            try:
+                with self.pg_conn.cursor(cursor_factory=NamedTupleCursor) as cursor:
+                    cursor.execute(sql_str, tuple(values))
+
+                    return cursor.fetchall()
+            except Exception as ex:
+                print_ex(ex)
+
+                return None
+
+    def select_and(self,table_name,**kwargs):
+        sql_str = 'select * from '+table_name
+
+        values = []
+
+        if kwargs:
+            where = []
+
+            for key, value in kwargs.items():
+                if value:
+                    values.append(value)
+
+                    where.append(f'({key}=%s)')
+                else:
+                    where.append(f'({key} is null)')
+
+            sql_str += ' where '+'AND'.join(where)
+
+        sql_str += ';'
+
+        return self.execute_query(sql_str,values)
+
+    def find(self,table_name, value):
+        return self.select_and(table_name,id=value)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -27,7 +100,8 @@ def main():
     parser.add_argument('-d', '--database', required=False, type=str, default='dataterminal')
     parser.add_argument('-u', '--user', required=False, type=str, default='dataterminal')
     parser.add_argument('-pas', '--password', required=False, type=str, default='terminal')
-    parser.add_argument('-r', '--replication', required=False, type=str, default='publisher', choices=['publisher', 'subscriber'])
+    parser.add_argument('-r', '--replication', required=False, type=str, default='publisher',
+                        choices=['publisher', 'subscriber'])
     parser.add_argument('-n', '--node', required=False, type=str, default='local', choices=['local', 'global'])
     parser.add_argument('-t', '--terminal', required=True, type=str, default='')
     parser.add_argument('-ap', '--adress_pub', required=False, type=str, default='localhost')
@@ -73,7 +147,8 @@ def main():
         #
         #     execute_query(pg_conn, sql_str)
 
-        con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (namespace.adress_pub, namespace.port_pub, namespace.user_pub, namespace.password_pub, namespace.database_pub)
+        con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
+        namespace.adress_pub, namespace.port_pub, namespace.user_pub, namespace.password_pub, namespace.database_pub)
 
         sql_str = "CREATE SUBSCRIPTION dt_subscription_doc_works_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_doc_works;" % {
             'con_str': con_str, 'terminal': namespace.terminal}
@@ -86,11 +161,13 @@ def main():
         execute_query(pg_conn, sql_str)
 
         if namespace.node == 'local':
-            sql_str = "CREATE SUBSCRIPTION dt_subscription_doc_tasks_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_doc_tasks;" % {'con_str': con_str, 'terminal': namespace.terminal}
+            sql_str = "CREATE SUBSCRIPTION dt_subscription_doc_tasks_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_doc_tasks;" % {
+                'con_str': con_str, 'terminal': namespace.terminal}
 
             execute_query(pg_conn, sql_str)
 
-            sql_str = "CREATE SUBSCRIPTION dt_subscription_terminals_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminals;" % {'con_str': con_str, 'terminal': namespace.terminal}
+            sql_str = "CREATE SUBSCRIPTION dt_subscription_terminals_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminals;" % {
+                'con_str': con_str, 'terminal': namespace.terminal}
 
             execute_query(pg_conn, sql_str)
         # elif namespace.node == 'global':
@@ -302,6 +379,8 @@ def main():
     except Exception as ex:
         print_ex(ex)
 
+
+Dbms = PostgresQL(adress='localhost',port='5432',database='dataterminal',user='dataterminal',password='terminal')
 
 if __name__ == '__main__':
     main()
