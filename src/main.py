@@ -6,7 +6,7 @@ import threading
 import time
 import argparse
 
-from metadata import MetaData, Reference, ReferenceOperators, ReferenceSpecialCodes
+from metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('Notify', '0.7')
@@ -111,38 +111,42 @@ class BarCodeObservable():
     def enter_barcode(self):
         res = False
 
-        if len(self.barcode) == 0:
-            return res
+        if len(self.barcode) != 0:
+            buf = f"{int(''.join(self.barcode)):032x}"
 
-        buf = f"{int(''.join(self.barcode)):032x}"
+#            if len(self.barcode) == 4:
+#                buf = f"{int('19943413916626024953293160309520456708'):032x}"
+#            elif len(self.barcode) == 5:
+#                buf = f"{int('192500790401048473589763342746414134657'):032x}"
+#            elif len(self.barcode) == 6:
+#                buf = f"{int('11842261259573834704613302285805112184'):032x}"
 
-#        buf = f"{int('19943413916626024953293160309520456708'):032x}"
+            id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
-        id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
+            for observer in self.observers:
+                if observer.update(id):
+                    res = True
 
-        for observer in self.observers:
-            if observer.update(id):
-                res = True
-
-                break
+                    break
 
         if not res:
             sc = (self.label.get_style_context())
+            
+            if not sc.has_class('red'):
+                css_str = """
+                    #""" + Gtk.Buildable.get_name(self.label) + """ {
+                    background: #FF0000;
+                }"""
 
-            css_str = """
-                #""" + Gtk.Buildable.get_name(self.label) + """ {
-                background: #FF0000;
-            }"""
+                if sc.has_class('black'):
+                    sc.remove_class('black')
 
-            if sc.has_class('black'):
-                sc.remove_class('black')
+                sc.add_class('red')
 
-            sc.add_class('red')
+                css_provider = Gtk.CssProvider()
+                css_provider.load_from_data(bytes(css_str, 'utf-8'))
 
-            css_provider = Gtk.CssProvider()
-            css_provider.load_from_data(bytes(css_str, 'utf-8'))
-
-            sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+                sc.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
         for observer in self.observers:
             observer.set_label_text()
@@ -207,10 +211,10 @@ class SpecialCodeObserver(BarCodeObserver):
 
 class DataModel:
     def __init__(self):
-        self.document_barcode = ''
+        self.document_id = ''
         self.document_number = ''
         self.operators = {}
-        self.specialcode = False
+        self.specialcode_id = ''
         self.start_time = time.time()
         self.status = 0
 
@@ -223,15 +227,15 @@ class DataModel:
     def is_operators(self):
         return len(self.operators) > 0
 
-    def operator_present(self, barcode):
-        return barcode in self.operators
+    def operator_present(self, id):
+        return id in self.operators
 
-    def add_operator(self, barcode):
+    def add_operator(self, id):
         res = False
 
         ref_operators = ReferenceOperators()
 
-        if ref_operators.find(barcode):
+        if ref_operators.find(id):
             self.operators[ref_operators.id] = ref_operators.name
 
             res = True
@@ -240,22 +244,24 @@ class DataModel:
 
         return res
 
-    def del_operator(self, barcode):
-        del self.operators[barcode]
+    def del_operator(self, id):
+        del self.operators[id]
 
         return True
 
     def clear_operators(self):
         self.operators.clear()
 
-    def set_operator(self, barcode):
+        return True
+
+    def set_operator(self, id):
         res = False
 
         if self.status < 2:
-            if self.operator_present(barcode):
-                res = self.del_operator(barcode)
+            if self.operator_present(id):
+                res = self.del_operator(id)
             else:
-                res = self.add_operator(barcode)
+                res = self.add_operator(id)
 
             self.set_status()
 
@@ -265,38 +271,43 @@ class DataModel:
         return str('\n'.join(self.operators.values()))
 
     def is_document(self):
-        return len(self.document_barcode) > 0
+        return len(self.document_id) > 0
 
-    def document_present(self, barcode):
-        return barcode == self.document_barcode
+    def document_present(self, id):
+        return id == self.document_id
 
-    def add_document(self, barcode):
-        self.document_barcode = barcode
-        self.document_number = f"Number: {barcode}"
+    def add_document(self, id):
+        res = False
+
+        doc_tasks = DocumentTasks()
+
+        if doc_tasks.find(id):
+            self.document_id = doc_tasks.id
+            self.document_number = doc_tasks.doc_number
+
+            res = True
+        else:
+            res = False
+
+        return res
 
     def del_document(self):
-        self.document_barcode = ''
+        self.document_id = ''
         self.document_number = ''
 
-    def set_document(self, barcode):
-        if len(barcode) != 4:
-            return False
+        return True
 
+    def set_document(self, id):
         res = False
 
         if self.status == 2 or self.status == 3:
-            if self.document_present(barcode):
-                self.del_document()
-                self.clear_operators()
-
-                res = True
+            if self.document_present(id):
+                res = self.del_document() and self.clear_operators()
         elif self.status == 1:
-            if self.document_present(barcode):
-                self.del_document()
+            if self.document_present(id):
+                res = self.del_document()
             else:
-                self.add_document(barcode)
-
-            res = True
+                res = self.add_document(id)
 
         self.set_status()
 
@@ -306,20 +317,43 @@ class DataModel:
         return str(self.document_number)
 
     def is_specialcode(self):
-        return self.specialcode
+        return len(self.specialcode_id) > 0
 
-    def set_specialcode(self, barcode):
-        if len(barcode) != 6:
-            return False
+    def specialcode_present(self, id):
+        return id == self.specialcode_id
 
+    def del_specialcode(self):
+        self.specialcode_id = ''
+
+        return True
+
+    def add_specialcode(self, id):
         res = False
 
-        if self.status == 2 or self.status == 3:
-            self.specialcode = not self.specialcode
+        ref_specialcodes = ReferenceSpecialCodes()
+
+        if ref_specialcodes.find(id):
+            self.specialcode_id = ref_specialcodes.id
 
             res = True
+        else:
+            res = False
 
-            self.set_status()
+        return res
+
+    def set_specialcode(self, id):
+        res = False
+
+        if self.status == 2:
+            if self.specialcode_present(id):
+                res = self.del_specialcode()
+            else:
+                res = self.add_specialcode(id)
+        elif self.status == 3:
+            if self.specialcode_present(id):
+                res = self.del_specialcode()
+
+        self.set_status()
 
         return res
 
@@ -406,6 +440,7 @@ def create_parser():
 
     return parser
 
+
 def update_indicator(label):
     try:
         if DATAMODEL.status == 2 or DATAMODEL.status == 3:
@@ -469,7 +504,7 @@ def main():
                                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     window = builder.get_object('window_main')
-#    window.maximize()
+    #    window.maximize()
     window.show_all()
 
     # try:
@@ -498,9 +533,9 @@ def main():
 
         MetaData.disconnect()
 
+
 #        pg_cursor.close()
 #        pg_conn.close()
-
 
 if __name__ == '__main__':
     main()
