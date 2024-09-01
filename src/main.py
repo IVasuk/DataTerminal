@@ -506,7 +506,8 @@ def main():
                                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     window = builder.get_object('window_main')
-    #    window.maximize()
+    window.fullscreen()
+    window.maximize()
     window.show_all()
 
     rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'))  # it auto-starts, no need of rt.start()
