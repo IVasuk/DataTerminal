@@ -21,6 +21,11 @@ def execute_query(conn, sql_str, args=()):
         conn.close()
 
         exit(1)
+class DbmsConnected(Exception):
+    def __init__(self):
+        self.message = 'Підключення до бази даних відкрите'
+
+        super().__init__(self.message)
 
 class PostgresQL:
     def __init__(self,**kwargs):
@@ -55,6 +60,10 @@ class PostgresQL:
             print_ex(ex)
 
             return False
+
+    def set_dbms_attribute(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def execute_query(self,sql_str,values):
             try:

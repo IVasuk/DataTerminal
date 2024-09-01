@@ -6,8 +6,6 @@ import threading
 import time
 import argparse
 
-from metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks
-
 gi.require_version('Gtk', '3.0')
 gi.require_version('Notify', '0.7')
 
@@ -15,8 +13,9 @@ from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
 
-CURRDIR = os.path.dirname(os.path.abspath(__file__))
+from src.metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks
 
+CURRDIR = os.path.dirname(os.path.abspath(__file__))
 
 class BarCodeObservable():
     def __init__(self, label, label_time):
@@ -394,6 +393,9 @@ class Handler:
     def on_destroy(self, *args):
         Gtk.main_quit()
 
+    def on_button_release_event(self, *args):
+        Gtk.main_quit()
+
     def on_key_release_event(self, *args):
         ch = chr(args[1].keyval)
         if ch.isdigit():
@@ -507,22 +509,13 @@ def main():
     #    window.maximize()
     window.show_all()
 
-    # try:
-    #     pg_conn = psycopg2.connect(dbname=namespace.database, user=namespace.user, password=namespace.password,
-    #                                host=namespace.adress, port=namespace.port)
-    #     pg_conn.autocommit = True
-    #     pg_cursor = pg_conn.cursor()
-    # except:
-    #     print("""Неможливо підключитися до бази даних:
-    #             adress:%s
-    #             port:%s
-    #             database:%s
-    #             user:%s
-    #             password:%s""" % (
-    #         namespace.adress, namespace.port, namespace.database, namespace.user, namespace.password))
-    #     exit()
-
     rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'))  # it auto-starts, no need of rt.start()
+
+    MetaData.set_adress(namespace.adress)
+    MetaData.set_port(namespace.port)
+    MetaData.set_database(namespace.database)
+    MetaData.set_user(namespace.user)
+    MetaData.set_password(namespace.password)
 
     try:
         MetaData.connect()
@@ -532,10 +525,6 @@ def main():
         rt.stop()  # better in a try/finally block to make sure the program ends!
 
         MetaData.disconnect()
-
-
-#        pg_cursor.close()
-#        pg_conn.close()
 
 if __name__ == '__main__':
     main()

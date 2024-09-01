@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from dt_dbms import Dbms
+from src.dt_dbms import Dbms
 
 class MetaData:
     def __init__(self,table_name,meta_type,meta_ident):
@@ -19,6 +19,26 @@ class MetaData:
     @staticmethod
     def disconnect():
         return Dbms.disconnect()
+
+    @staticmethod
+    def set_adress(value):
+        return Dbms.set_dbms_attribute(adress=value)
+
+    @staticmethod
+    def set_port(value):
+        return Dbms.set_dbms_attribute(port=value)
+
+    @staticmethod
+    def set_database(value):
+        return Dbms.set_dbms_attribute(database=value)
+
+    @staticmethod
+    def set_user(value):
+        return Dbms.set_dbms_attribute(user=value)
+
+    @staticmethod
+    def set_password(value):
+        return Dbms.set_dbms_attribute(password=value)
 
 class Reference(MetaData):
     def __init__(self, table_name, meta_ident):

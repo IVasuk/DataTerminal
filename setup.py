@@ -7,7 +7,7 @@ setup(
     description = 'Data terminal',
     license='GPL v3',
     author = 'vasuk.mobile@gmail.com',
-    packages = ['src'],
+    packages=['src'],
     package_data={'src': ['description.txt','ui/*']
                  },
 #    install_requires=['future'],
