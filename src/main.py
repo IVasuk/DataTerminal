@@ -13,7 +13,8 @@ from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
 
-from src.metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks
+from src.metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks, ReferenceTerminals, \
+    ReferenceEquipments
 
 CURRDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -113,10 +114,10 @@ class BarCodeObservable():
         if len(self.barcode) != 0:
             buf = f"{int(''.join(self.barcode)):032x}"
 
-#            if len(self.barcode) == 4:
-#                buf = f"{int('19943413916626024953293160309520456708'):032x}"
+            if len(self.barcode) == 4:
+#                buf = f"{int('199851990660470892585456560452787876420'):032x}"
 #            elif len(self.barcode) == 5:
-#                buf = f"{int('192500790401048473589763342746414134657'):032x}"
+#                buf = f"{int('278431845801182494262472827144873695189'):032x}"
 #            elif len(self.barcode) == 6:
 #                buf = f"{int('11842261259573834704613302285805112184'):032x}"
 
@@ -216,6 +217,7 @@ class DataModel:
         self.specialcode_id = ''
         self.start_time = time.time()
         self.status = 0
+        self.terminal_id = None
 
     def set_starttime(self):
         self.start_time = time.time()
@@ -281,12 +283,18 @@ class DataModel:
         doc_tasks = DocumentTasks()
 
         if doc_tasks.find(id):
-            self.document_id = doc_tasks.id
-            self.document_number = doc_tasks.doc_number
+            if doc_tasks.line_id:
+                ref_terminals = ReferenceTerminals()
 
-            res = True
-        else:
-            res = False
+                if ref_terminals.find(MetaData.TERMINAL_ID):
+                    ref_equipments = ReferenceEquipments()
+
+                    if ref_equipments.find(ref_terminals.equipment_id):
+                        if doc_tasks.line_id == ref_equipments.line_id:
+                            self.document_id = doc_tasks.id
+                            self.document_number = doc_tasks.doc_number
+
+                            res = True
 
         return res
 
@@ -520,6 +528,8 @@ def main():
 
     try:
         MetaData.connect()
+
+        MetaData.set_terminal_id()
 
         Gtk.main()
     finally:

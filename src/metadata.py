@@ -2,12 +2,14 @@
 from src.dt_dbms import Dbms
 
 class MetaData:
+    TERMINAL_ID = None
+
     def __init__(self,table_name,meta_type,meta_ident):
         self.table_name = table_name
         self.meta_type = meta_type
         self.meta_ident = meta_ident
 
-        self.id = ''
+        self.id = None
 
     def find(self,id):
         return Dbms.find(self.table_name,id)
@@ -40,6 +42,10 @@ class MetaData:
     def set_password(value):
         return Dbms.set_dbms_attribute(password=value)
 
+    @classmethod
+    def set_terminal_id(cls):
+        cls.TERMINAL_ID = Dbms.get_terminal_id()
+
 class Reference(MetaData):
     def __init__(self, table_name, meta_ident):
         super().__init__(table_name,'Reference',meta_ident)
@@ -70,6 +76,43 @@ class ReferenceTerminals(Reference):
     def __init__(self):
         super().__init__('dt_terminals','Terminals')
 
+        self.equipment_id = None
+        self.doc_tasks_id = None
+        self.doc_works_id = None
+        self.last_seen = None
+
+    def find(self, id):
+        res = super().find(id)
+
+        if res:
+            self.equipment_id = res[0].dt_equipments_id
+            self.doc_works_id = res[0].dt_doc_works_id
+            self.doc_tasks_id = res[0].dt_doc_tasks_id
+            self.last_seen = res[0].last_seen
+        else:
+            self.equipment_id = None
+            self.doc_works_id = None
+            self.doc_tasks_id = None
+            self.last_seen = None
+
+        return res
+
+class ReferenceEquipments(Reference):
+    def __init__(self):
+        super().__init__('dt_equipments','Equipments')
+
+
+    def find(self, id):
+        res = super().find(id)
+
+        if res:
+            self.line_id = res[0].line_id
+        else:
+            self.line_id = None
+
+        return res
+
+
 class Document(MetaData):
     def __init__(self, table_name, meta_ident):
         super().__init__(table_name,'Document',meta_ident)
@@ -86,8 +129,10 @@ class DocumentTasks(Document):
         if res:
             self.id = res[0].id
             self.doc_number = res[0].doc_number
+            self.line_id = res[0].line_id
         else:
-            self.id = ''
+            self.id = None
             self.doc_number = ''
+            self.line_id = None
 
         return res

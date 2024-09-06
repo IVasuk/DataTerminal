@@ -132,7 +132,7 @@ class PostgresQL:
 
     def create_publications_global(self):
         sql_str = """
-            CREATE PUBLICATION dt_publication_terminal_data FOR TABLE dt_doc_tasks, dt_terminals, dt_operators, dt_special_codes;
+            CREATE PUBLICATION dt_publication_terminal_data FOR TABLE dt_doc_tasks, dt_terminals, dt_operators, dt_special_codes, dt_equipments;
             CREATE PUBLICATION dt_publication_terminal_data_delete FOR TABLE dt_export_plan, dt_doc_works, dt_doc_works_items_operators, dt_doc_works_items_intervals WITH (publish = 'delete,truncate');
         """
         self.execute_query(sql_str)
@@ -221,12 +221,12 @@ class PostgresQL:
             con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
             self.adress_pub, self.port_pub, self.user_pub, self.password_pub, self.dbname_pub)
 
-            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data WITH (copy_data = false, origin = none);" % {
+            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data WITH (copy_data = true, origin = none);" % {
                 'con_str': con_str, 'terminal': terminal_id}
 
             self.execute_query(sql_str)
 
-            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_delete_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data_delete WITH (copy_data = false, origin = none);" % {
+            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_delete_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data_delete WITH (copy_data = true, origin = none);" % {
                 'con_str': con_str, 'terminal': terminal_id}
 
             self.execute_query(sql_str)
