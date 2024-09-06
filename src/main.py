@@ -436,7 +436,7 @@ def create_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--adress', required=False, type=str, default='localhost')
     parser.add_argument('-p', '--port', required=False, type=str, default='5432')
-    parser.add_argument('-d', '--database', required=False, type=str, default='dataterminal')
+    parser.add_argument('-d', '--dbname', required=False, type=str, default='dataterminal')
     parser.add_argument('-u', '--user', required=False, type=str, default='dataterminal')
     parser.add_argument('-pas', '--password', required=False, type=str, default='terminal')
 
@@ -514,7 +514,7 @@ def main():
 
     MetaData.set_adress(namespace.adress)
     MetaData.set_port(namespace.port)
-    MetaData.set_database(namespace.database)
+    MetaData.set_dbname(namespace.dbname)
     MetaData.set_user(namespace.user)
     MetaData.set_password(namespace.password)
 

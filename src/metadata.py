@@ -29,8 +29,8 @@ class MetaData:
         return Dbms.set_dbms_attribute(port=value)
 
     @staticmethod
-    def set_database(value):
-        return Dbms.set_dbms_attribute(database=value)
+    def set_dbname(value):
+        return Dbms.set_dbms_attribute(dbname=value)
 
     @staticmethod
     def set_user(value):

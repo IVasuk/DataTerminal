@@ -1,28 +1,13 @@
 import argparse
 import psycopg2
 
-from collections import namedtuple
 from psycopg2.extras import NamedTupleCursor
-from setuptools.extern import names
 
 
 def print_ex(ex):
     print(type(ex))
     print(ex.args)
     print(ex)
-
-
-def execute_query(conn, sql_str, args=()):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(sql_str, args)
-        cursor.close()
-    except Exception as ex:
-        print_ex(ex)
-
-        conn.close()
-
-        exit(1)
 
 
 class DbmsConnected(Exception):
@@ -33,6 +18,9 @@ class DbmsConnected(Exception):
 
 
 class PostgresQL:
+    CONNECT_PARAMS = (
+    'adress', 'port', 'dbname', 'user', 'password', 'adress_pub', 'port_pub', 'dbname_pub', 'user_pub', 'password_pub')
+
     def __init__(self, **kwargs):
         self.set_dbms_attribute(**kwargs)
 
@@ -40,7 +28,7 @@ class PostgresQL:
 
     def connect(self):
         try:
-            self.pg_conn = psycopg2.connect(dbname=self.database, user=self.user, password=self.password,
+            self.pg_conn = psycopg2.connect(dbname=self.dbname, user=self.user, password=self.password,
                                             host=self.adress, port=self.port)
             self.pg_conn.autocommit = True
 
@@ -64,23 +52,27 @@ class PostgresQL:
 
     def set_dbms_attribute(self, **kwargs):
         for key, value in kwargs.items():
-            setattr(self, key, value)
+            if key in PostgresQL.CONNECT_PARAMS:
+                setattr(self, key, value)
 
     def execute_query(self, sql_str, values=()):
         try:
-            with self.pg_conn.cursor(cursor_factory=NamedTupleCursor) as cursor:
-                cursor.execute(sql_str, tuple(values))
+            cursor = self.pg_conn.cursor(cursor_factory=NamedTupleCursor)
 
-                if cursor.rowcount > 0:
-                    return cursor.fetchall()
-                else:
-                    return None
+            cursor.execute(sql_str, tuple(values))
         except Exception as ex:
             print_ex(ex)
 
-            return None
+            return False
 
-    def set_terminal_id(self,id):
+        try:
+            return cursor.fetchall()
+        except:
+            return None
+        finally:
+            cursor.close()
+
+    def set_terminal_id(self, terminal_id):
         sql_str = """
             DROP TYPE IF EXISTS dt_terminal_id;
         """
@@ -88,9 +80,20 @@ class PostgresQL:
 
         sql_str = """
             CREATE TYPE dt_terminal_id AS ENUM ('%(terminal)s');
-        """ % {'terminal': id}
+        """ % {'terminal': terminal_id}
 
         self.execute_query(sql_str)
+
+        return True
+
+    def generate_terminal_id(self):
+        sql_str = """
+            select * from gen_random_uuid();
+        """
+        res = self.execute_query(sql_str)
+
+        if res:
+            self.set_terminal_id(res[0].gen_random_uuid)
 
         return True
 
@@ -106,11 +109,20 @@ class PostgresQL:
         else:
             return None
 
-    def delete_publications(self):
+    def delete_publications_global(self):
         sql_str = """
-            DROP PUBLICATION IF EXISTS dt_publication_terminals;
+            DROP PUBLICATION IF EXISTS dt_publication_terminal_data;
+            DROP PUBLICATION IF EXISTS dt_publication_terminal_data_delete;
+        """
+
+        self.execute_query(sql_str)
+
+        return True
+
+    def delete_publications_local(self):
+        sql_str = """
+            DROP PUBLICATION IF EXISTS dt_publication_terminal_data;
             DROP PUBLICATION IF EXISTS dt_publication_doc_works;
-            DROP PUBLICATION IF EXISTS dt_publication_doc_tasks;
             DROP PUBLICATION IF EXISTS dt_publication_export_plan;
         """
 
@@ -137,41 +149,41 @@ class PostgresQL:
 
         return True
 
-    def delete_subscriptions_global(self,terminal_id):
+    def delete_subscriptions_global(self, terminal_id):
         sql_str = """
-            DROP SUBSCRIPTION IF EXISTS dt_subscription_terminal_data_%(terminal)s;
+            DROP SUBSCRIPTION IF EXISTS dt_s_terminal_data_%(terminal)s;
         """ % {'terminal': terminal_id}
 
         self.execute_query(sql_str)
 
         sql_str = """
-            DROP SUBSCRIPTION IF EXISTS dt_subscription_export_plan_%(terminal)s;
+            DROP SUBSCRIPTION IF EXISTS dt_s_export_plan_%(terminal)s;
         """ % {'terminal': terminal_id}
 
         self.execute_query(sql_str)
 
         sql_str = """
-            DROP SUBSCRIPTION IF EXISTS dt_subscription_doc_works_%(terminal)s;
+            DROP SUBSCRIPTION IF EXISTS dt_s_doc_works_%(terminal)s;
         """ % {'terminal': terminal_id}
 
         self.execute_query(sql_str)
 
         return True
 
-    def delete_suscriptions_local(self):
+    def delete_subscriptions_local(self):
         res = self.get_terminal_id()
 
         if res:
-            terminal_id = res
+            terminal_id = res.replace('-', '')
 
             sql_str = """
-                DROP SUBSCRIPTION IF EXISTS dt_subscription_terminal_data_%(terminal)s;
+                DROP SUBSCRIPTION IF EXISTS dt_s_terminal_data_%(terminal)s;
             """ % {'terminal': terminal_id}
 
             self.execute_query(sql_str)
 
             sql_str = """
-                DROP SUBSCRIPTION IF EXISTS dt_subscription_terminal_data_delete_%(terminal)s;
+                DROP SUBSCRIPTION IF EXISTS dt_s_terminal_data_delete_%(terminal)s;
             """ % {'terminal': terminal_id}
 
             self.execute_query(sql_str)
@@ -181,19 +193,19 @@ class PostgresQL:
     def create_subscriptions_global(self, terminal_id):
         con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
             self.adress_pub, self.port_pub, self.user_pub, self.password_pub,
-            self.database_pub)
+            self.dbname_pub)
 
-        sql_str = "CREATE SUBSCRIPTION dt_subscription_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data;" % {
+        sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data WITH (copy_data = false, origin = none);" % {
             'con_str': con_str, 'terminal': terminal_id}
 
         self.execute_query(sql_str)
 
-        sql_str = "CREATE SUBSCRIPTION dt_subscription_doc_works_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_doc_works;" % {
+        sql_str = "CREATE SUBSCRIPTION dt_s_doc_works_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_doc_works WITH (copy_data = false, origin = none);" % {
             'con_str': con_str, 'terminal': terminal_id}
 
         self.execute_query(sql_str)
 
-        sql_str = "CREATE SUBSCRIPTION dt_subscription_export_plan_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_export_plan;" % {
+        sql_str = "CREATE SUBSCRIPTION dt_s_export_plan_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_export_plan WITH (copy_data = false, origin = none);" % {
             'con_str': con_str, 'terminal': terminal_id}
 
         self.execute_query(sql_str)
@@ -204,22 +216,72 @@ class PostgresQL:
         res = self.get_terminal_id()
 
         if res:
-            terminal_id = res
+            terminal_id = res.replace('-', '')
 
-            con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (self.adress_pub, self.port_pub, self.user_pub, self.password_pub,self.database_pub)
+            con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
+            self.adress_pub, self.port_pub, self.user_pub, self.password_pub, self.dbname_pub)
 
-            sql_str = "CREATE SUBSCRIPTION dt_subscription_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data;" % {
+            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data WITH (copy_data = false, origin = none);" % {
                 'con_str': con_str, 'terminal': terminal_id}
 
             self.execute_query(sql_str)
 
-            sql_str = "CREATE SUBSCRIPTION dt_subscription_terminal_data_delete_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data_delete;" % {
+            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_delete_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data_delete WITH (copy_data = false, origin = none);" % {
                 'con_str': con_str, 'terminal': terminal_id}
 
             self.execute_query(sql_str)
 
         return True
 
+    def push_subscriptions_to_global(self, **kwargs):
+        res = self.get_terminal_id()
+
+        if res:
+            dbms = PostgresQL(**kwargs)
+
+            dbms.connect()
+
+            dbms.create_subscriptions_global(res.replace('-', ''))
+
+            dbms.disconnect()
+
+        return True
+
+    def pop_subscriptions_from_global(self, **kwargs):
+        res = self.get_terminal_id()
+
+        if res:
+            dbms = PostgresQL(**kwargs)
+
+            dbms.connect()
+
+            dbms.delete_subscriptions_global(res.replace('-', ''))
+
+            dbms.disconnect()
+
+        return True
+
+    def push_subscriptions_to_local(self, **kwargs):
+        dbms = PostgresQL(**kwargs)
+
+        dbms.connect()
+
+        dbms.create_subscriptions_local()
+
+        dbms.disconnect()
+
+        return True
+
+    def pop_subscriptions_from_local(self, **kwargs):
+        dbms = PostgresQL(**kwargs)
+
+        dbms.connect()
+
+        dbms.delete_subscriptions_local()
+
+        dbms.disconnect()
+
+        return True
 
     def create_tables(self):
         sql_str = """
@@ -302,7 +364,7 @@ class PostgresQL:
             CREATE TABLE dt_terminals (
             id uuid PRIMARY KEY,
             name varchar(120) NOT NULL,
-            dt_equipments_id uuid references dt_equipments(id) NOT NULL,
+            dt_equipments_id uuid references dt_equipments(id) DEFAULT NULL,
             dt_doc_tasks_id uuid references dt_doc_tasks(id) DEFAULT NULL,
             dt_doc_works_id uuid references dt_doc_works(id) DEFAULT NULL,
             last_seen timestamp with time zone DEFAULT NULL);
@@ -380,7 +442,7 @@ class PostgresQL:
             CREATE OR REPLACE FUNCTION dt_set_id() RETURNS trigger AS $dt_set_id$
             BEGIN
               IF NEW.id IS NULL THEN
-                NEW.id := gen_random_uuid();
+                    NEW.id := gen_random_uuid();
               END IF;
 
               RETURN NEW;
@@ -407,6 +469,15 @@ class PostgresQL:
         """
 
         self.execute_query(sql_str)
+
+        return True
+
+    def create_default_terminal(self):
+        sql_str = """
+            INSERT INTO public.dt_terminals(id, name, last_seen) VALUES (%s, %s, now());
+        """
+
+        self.execute_query(sql_str, (self.get_terminal_id(), 'Новий термінал'))
 
         return True
 
@@ -439,28 +510,36 @@ class PostgresQL:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-r', '--run', required=True, type=str, default='publisher',
-                        choices=['delete_subscriptions', 'delete_publications','create_subscriptions','create_publications','create_tables'])
+                        choices=['delete_subscriptions', 'delete_publications', 'create_publications',
+                                 'create_subscriptions', 'push_subscriptions', 'pop_subscriptions', 'create_tables',
+                                 'create_default_terminal'])
     parser.add_argument('-n', '--node', required=True, type=str, default='local', choices=['local', 'global'])
     parser.add_argument('-t', '--terminal', required=False, type=str, default='')
     parser.add_argument('-a', '--adress', required=False, type=str, default='localhost')
     parser.add_argument('-p', '--port', required=False, type=str, default='5432')
-    parser.add_argument('-d', '--database', required=False, type=str, default='dataterminal')
+    parser.add_argument('-d', '--dbname', required=False, type=str, default='dataterminal')
     parser.add_argument('-u', '--user', required=False, type=str, default='dataterminal')
     parser.add_argument('-pas', '--password', required=False, type=str, default='terminal')
-    parser.add_argument('-ap', '--adress_pub', required=False, type=str, default='localhost')
-    parser.add_argument('-pp', '--port_pub', required=False, type=str, default='5432')
-    parser.add_argument('-dp', '--database_pub', required=False, type=str, default='dataterminal')
+    parser.add_argument('-ap', '--adress_pub', required=False, type=str, default='')
+    parser.add_argument('-pp', '--port_pub', required=False, type=str, default='')
+    parser.add_argument('-dp', '--dbname_pub', required=False, type=str, default='dataterminal')
     parser.add_argument('-up', '--user_pub', required=False, type=str, default='dataterminal')
     parser.add_argument('-pasp', '--password_pub', required=False, type=str, default='terminal')
+    parser.add_argument('-ra', '--adress_remote', required=False, type=str, default='')
+    parser.add_argument('-rp', '--port_remote', required=False, type=str, default='')
+    parser.add_argument('-rd', '--dbname_remote', required=False, type=str, default='dataterminal')
+    parser.add_argument('-ru', '--user_remote', required=False, type=str, default='dataterminal')
+    parser.add_argument('-rpas', '--password_remote', required=False, type=str, default='terminal')
 
     namespace = parser.parse_args()
 
     dbms = PostgresQL()
-    dbms.set_dbms_attribute(adress=namespace.adress, port=namespace.port, database=namespace.database,
-        user=namespace.user,password=namespace.password)
+    dbms.set_dbms_attribute(adress=namespace.adress, port=namespace.port, dbname=namespace.dbname,
+                            user=namespace.user, password=namespace.password)
 
-    dbms.set_dbms_attribute(adress_pub=namespace.adress_pub, port_pub=namespace.port_pub, database_pub=namespace.database_pub,
-        user_pub=namespace.user_pub,password_pub=namespace.password_pub)
+    dbms.set_dbms_attribute(adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
+                            dbname_pub=namespace.dbname_pub,
+                            user_pub=namespace.user_pub, password_pub=namespace.password_pub)
 
     dbms.connect()
 
@@ -468,14 +547,19 @@ def main():
         case 'delete_subscriptions':
             match namespace.node:
                 case 'local':
-                    dbms.delete_suscriptions_local()
+                    dbms.delete_subscriptions_local()
                 case 'global':
                     if len(namespace.terminal) > 0:
                         dbms.delete_subscriptions_global(namespace.terminal)
                     else:
-                        print('При видаленні підписки в глобальній базі даних необхідно вказати унікальну назву терміналу (ключ -t)')
+                        print(
+                            'При видаленні підписки в глобальній базі даних необхідно вказати унікальну назву терміналу (ключ -t)')
         case 'delete_publications':
-            dbms.delete_publications()
+            match namespace.node:
+                case 'local':
+                    dbms.delete_publications_local()
+                case 'global':
+                    dbms.delete_publications_global()
         case 'create_subscriptions':
             match namespace.node:
                 case 'local':
@@ -484,7 +568,40 @@ def main():
                     if len(namespace.terminal) > 0:
                         dbms.create_subscriptions_global(namespace.terminal)
                     else:
-                        print('При створенні підписки в глобальній базі даних необхідно вказати унікальну назву терміналу (ключ -t)')
+                        print(
+                            'При створенні підписки в глобальній базі даних необхідно вказати унікальну назву терміналу (ключ -t)')
+        case 'push_subscriptions':
+            match namespace.node:
+                case 'local':
+                    dbms.push_subscriptions_to_global(adress=namespace.adress_remote, port=namespace.port_remote,
+                                                      dbname=namespace.dbname_remote, user=namespace.user_remote,
+                                                      password=namespace.password_remote,
+                                                      adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
+                                                      dbname_pub=namespace.dbname_pub, user_pub=namespace.user_pub,
+                                                      password_pub=namespace.password_pub)
+                case 'global':
+                    dbms.push_subscriptions_to_local(adress=namespace.adress_remote, port=namespace.port_remote,
+                                                     dbname=namespace.dbname_remote, user=namespace.user_remote,
+                                                     password=namespace.password_remote,
+                                                     adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
+                                                     dbname_pub=namespace.dbname_pub, user_pub=namespace.user_pub,
+                                                     password_pub=namespace.password_pub)
+        case 'pop_subscriptions':
+            match namespace.node:
+                case 'local':
+                    dbms.pop_subscriptions_from_global(adress=namespace.adress_remote, port=namespace.port_remote,
+                                                       dbname=namespace.dbname_remote, user=namespace.user_remote,
+                                                       password=namespace.password_remote,
+                                                       adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
+                                                       dbname_pub=namespace.dbname_pub, user_pub=namespace.user_pub,
+                                                       password_pub=namespace.password_pub)
+                case 'global':
+                    dbms.pop_subscriptions_from_local(adress=namespace.adress_remote, port=namespace.port_remote,
+                                                      dbname=namespace.dbname_remote, user=namespace.user_remote,
+                                                      password=namespace.password_remote,
+                                                      adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
+                                                      dbname_pub=namespace.dbname_pub, user_pub=namespace.user_pub,
+                                                      password_pub=namespace.password_pub)
         case 'create_publications':
             match namespace.node:
                 case 'local':
@@ -494,17 +611,18 @@ def main():
         case 'create_tables':
             if len(namespace.terminal) > 0:
                 dbms.set_terminal_id(namespace.terminal)
-
-                dbms.create_tables()
             else:
-                print('При створенні таблиць бази даних необхідно вказати унікальну назву терміналу (ключ -t)')
+                dbms.generate_terminal_id()
+
+            dbms.create_tables()
+        case 'create_default_terminal':
+            dbms.create_default_terminal()
 
     dbms.disconnect()
+
 
 if __name__ == '__main__':
     main()
 else:
-    Dbms = PostgresQL(adress='localhost', port='5432', database='dataterminal', user='dataterminal',
+    Dbms = PostgresQL(adress='localhost', port='5432', dbname='dataterminal', user='dataterminal',
                       password='terminal')
-
-
