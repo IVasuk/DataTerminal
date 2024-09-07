@@ -10,6 +10,8 @@ def print_ex(ex):
     print(ex.args)
     print(ex)
 
+def get_new_dbms(**kwargs):
+    return PostgresQL(**kwargs)
 
 class DbmsConnected(Exception):
     def __init__(self):
@@ -652,5 +654,5 @@ psycopg2.extras.register_uuid()
 if __name__ == '__main__':
     main()
 else:
-    Dbms = PostgresQL(adress='localhost', port='5432', dbname='dataterminal', user='dataterminal',
+    Dbms = get_new_dbms(adress='localhost', port='5432', dbname='dataterminal', user='dataterminal',
                       password='terminal')

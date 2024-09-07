@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from datetime import datetime
 import uuid
-from src.dt_dbms import Dbms
+from src.dt_dbms import Dbms, get_new_dbms
 
 class MetaData:
     TERMINAL_ID = None
@@ -85,6 +85,10 @@ class MetaData:
     @classmethod
     def set_terminal_id(cls):
         cls.TERMINAL_ID = Dbms.get_terminal_id()
+
+    @staticmethod
+    def get_new_dbms(**kwargs):
+        return get_new_dbms(**kwargs)
 
 
 class Reference(MetaData):

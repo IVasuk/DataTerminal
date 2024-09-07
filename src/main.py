@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-
+import datetime
 import os
 import uuid
-from uuid import uuid4
 
 import gi
 import threading
@@ -528,7 +527,7 @@ def create_parser():
     return parser
 
 
-def update_indicator(label):
+def update_indicator(label,dbms=None):
     try:
         if DATAMODEL.status == 2 or DATAMODEL.status == 3:
             hours, remaining = divmod(int(time.time() - DATAMODEL.get_starttime()), 3600)
@@ -537,6 +536,16 @@ def update_indicator(label):
             label.set_text(f"{hours:02}:{minutes:02}:{seconds:02}")
         else:
             label.set_text(time.strftime("%H:%M:%S"))
+
+
+        if dbms:
+            ref_terminals = ReferenceTerminals()
+
+            if ref_terminals.find(MetaData.TERMINAL_ID):
+                ref_terminals.doc_tasks_id = DATAMODEL.document_id
+                ref_terminals.doc_works_id = DATAMODEL.work_id
+                ref_terminals.last_seen = datetime.datetime.now()
+                ref_terminals.save()
     except:
         Gtk.main_quit()
 
@@ -595,7 +604,9 @@ def main():
     window.maximize()
     window.show_all()
 
-    rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'))  # it auto-starts, no need of rt.start()
+    dbms_thread = MetaData.get_new_dbms(adress=namespace.adress, port=namespace.port, dbname=namespace.dbname, user=namespace.user, password=namespace.password)
+
+    rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'), dbms_thread)  # it auto-starts, no need of rt.start()
 
     MetaData.set_adress(namespace.adress)
     MetaData.set_port(namespace.port)
@@ -608,11 +619,15 @@ def main():
 
         MetaData.set_terminal_id()
 
+        dbms_thread.connect()
+
         Gtk.main()
     finally:
         rt.stop()  # better in a try/finally block to make sure the program ends!
 
         MetaData.disconnect()
+
+        dbms_thread.disconnect()
 
 if __name__ == '__main__':
     main()
