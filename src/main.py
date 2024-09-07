@@ -116,12 +116,12 @@ class BarCodeObservable():
         if len(self.barcode) != 0:
             buf = f"{int(''.join(self.barcode)):032x}"
 
-            if len(self.barcode) == 4:
-                buf = f"{int('199851990660470892585456560452787876420'):032x}"
-            elif len(self.barcode) == 5:
-                buf = f"{int('278431845801182494262472827144873695189'):032x}"
-            elif len(self.barcode) == 6:
-                buf = f"{int('257379423344104394911442650750362021658'):032x}"
+            # if len(self.barcode) == 4:
+            #     buf = f"{int('199851990660470892585456560452787876420'):032x}"
+            # elif len(self.barcode) == 5:
+            #     buf = f"{int('278431845801182494262472827144873695189'):032x}"
+            # elif len(self.barcode) == 6:
+            #     buf = f"{int('257379423344104394911442650750362021658'):032x}"
 
             id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
