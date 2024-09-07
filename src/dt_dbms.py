@@ -1,7 +1,8 @@
 import argparse
 import psycopg2
+import psycopg2.extras
 
-from psycopg2.extras import NamedTupleCursor
+#from psycopg2.extras import NamedTupleCursor
 
 
 def print_ex(ex):
@@ -29,7 +30,7 @@ class PostgresQL:
     def connect(self):
         try:
             self.pg_conn = psycopg2.connect(dbname=self.dbname, user=self.user, password=self.password,
-                                            host=self.adress, port=self.port)
+                                            host=self.adress, port=self.port, cursor_factory=psycopg2.extras.DictCursor)
             self.pg_conn.autocommit = True
 
             return True
@@ -57,7 +58,7 @@ class PostgresQL:
 
     def execute_query(self, sql_str, values=()):
         try:
-            cursor = self.pg_conn.cursor(cursor_factory=NamedTupleCursor)
+            cursor = self.pg_conn.cursor()
 
             cursor.execute(sql_str, tuple(values))
         except Exception as ex:
@@ -105,7 +106,7 @@ class PostgresQL:
         res = self.execute_query(sql_str)
 
         if res:
-            return res[0].enum_range[1:-1]
+            return res[0]['enum_range'][1:-1]
         else:
             return None
 
@@ -481,15 +482,15 @@ class PostgresQL:
 
         return True
 
-    def select_and(self, table_name, **kwargs):
+    def select_and(self, table_name, args=None):
         sql_str = 'select * from ' + table_name
 
         values = []
 
-        if kwargs:
+        if args:
             where = []
 
-            for key, value in kwargs.items():
+            for key, value in args.items():
                 if value:
                     values.append(value)
 
@@ -504,7 +505,33 @@ class PostgresQL:
         return self.execute_query(sql_str, values)
 
     def find(self, table_name, value):
-        return self.select_and(table_name, id=value)
+        return self.select_and(table_name, {'id': value})
+
+    def find_by_requisite(self, table_name, args=None):
+        return self.select_and(table_name, args)
+
+    def insert_update(self,table_name,requisites={}):
+        sql_str = 'insert into ' + table_name
+
+        cols = []
+        vals = []
+        columns_update = []
+
+        if requisites:
+            for key, value in requisites.items():
+                cols.append(key)
+                vals.append(value)
+                columns_update.append(f'{key}=%s')
+
+        sql_str += '('+','.join(cols)+') VALUES ('+','.join(['%s']*len(vals))+')'
+
+        if len(columns_update) > 0:
+            sql_str += ' ON CONFLICT (id) DO UPDATE SET '+','.join(columns_update)
+            vals = vals*2
+
+        sql_str += ';'
+
+        return self.execute_query(sql_str, vals)
 
 
 def main():
@@ -620,6 +647,7 @@ def main():
 
     dbms.disconnect()
 
+psycopg2.extras.register_uuid()
 
 if __name__ == '__main__':
     main()

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 import os
+import uuid
+from uuid import uuid4
+
 import gi
 import threading
 import time
@@ -14,7 +17,7 @@ from gi.repository import Gdk
 from gi.repository import GLib
 
 from src.metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks, ReferenceTerminals, \
-    ReferenceEquipments
+    ReferenceEquipments, DocumentWorks
 
 CURRDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -83,7 +86,7 @@ class BarCodeObservable():
         self.observers.append(observer)
 
     def detach(self, observer):
-        self.remove(observer)
+        self.observers.remove(observer)
 
     def add_char(self, value):
         sc = (self.label.get_style_context())
@@ -115,11 +118,11 @@ class BarCodeObservable():
             buf = f"{int(''.join(self.barcode)):032x}"
 
             if len(self.barcode) == 4:
-#                buf = f"{int('199851990660470892585456560452787876420'):032x}"
-#            elif len(self.barcode) == 5:
-#                buf = f"{int('278431845801182494262472827144873695189'):032x}"
-#            elif len(self.barcode) == 6:
-#                buf = f"{int('11842261259573834704613302285805112184'):032x}"
+                buf = f"{int('199851990660470892585456560452787876420'):032x}"
+            elif len(self.barcode) == 5:
+                buf = f"{int('278431845801182494262472827144873695189'):032x}"
+            elif len(self.barcode) == 6:
+                buf = f"{int('257379423344104394911442650750362021658'):032x}"
 
             id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
@@ -211,13 +214,14 @@ class SpecialCodeObserver(BarCodeObserver):
 
 class DataModel:
     def __init__(self):
-        self.document_id = ''
+        self.document_id = None
         self.document_number = ''
         self.operators = {}
-        self.specialcode_id = ''
+        self.specialcode_id = None
         self.start_time = time.time()
         self.status = 0
         self.terminal_id = None
+        self.work_id = None
 
     def set_starttime(self):
         self.start_time = time.time()
@@ -237,7 +241,7 @@ class DataModel:
         ref_operators = ReferenceOperators()
 
         if ref_operators.find(id):
-            self.operators[ref_operators.id] = ref_operators.name
+            self.operators[str(ref_operators.id)] = ref_operators.name
 
             res = True
         else:
@@ -272,10 +276,10 @@ class DataModel:
         return str('\n'.join(self.operators.values()))
 
     def is_document(self):
-        return len(self.document_id) > 0
+        return self.document_id is not None
 
     def document_present(self, id):
-        return id == self.document_id
+        return id == str(self.document_id)
 
     def add_document(self, id):
         res = False
@@ -291,15 +295,27 @@ class DataModel:
 
                     if ref_equipments.find(ref_terminals.equipment_id):
                         if doc_tasks.line_id == ref_equipments.line_id:
-                            self.document_id = doc_tasks.id
-                            self.document_number = doc_tasks.doc_number
-
                             res = True
+
+                            doc_works = DocumentWorks()
+
+                            docs = doc_works.find_by_requsite('task_id', doc_tasks.id)
+
+                            if docs:
+                                for doc in docs:
+                                    if doc.status == 'complete':
+                                        res = False
+
+                                        break
+
+                            if res:
+                                self.document_id = doc_tasks.id
+                                self.document_number = doc_tasks.doc_number
 
         return res
 
     def del_document(self):
-        self.document_id = ''
+        self.document_id = None
         self.document_number = ''
 
         return True
@@ -310,11 +326,24 @@ class DataModel:
         if self.status == 2 or self.status == 3:
             if self.document_present(id):
                 res = self.del_document() and self.clear_operators()
+
+                if self.is_doc_works():
+                    if self.status == 2:
+                        self.set_doc_works_status('complete')
+                    else:
+                        self.set_doc_works_status('not_finished')
+
+                    self.del_doc_works()
         elif self.status == 1:
             if self.document_present(id):
+                self.del_doc_works()
+
                 res = self.del_document()
             else:
                 res = self.add_document(id)
+
+                if res:
+                    self.add_doc_works()
 
         self.set_status()
 
@@ -324,13 +353,13 @@ class DataModel:
         return str(self.document_number)
 
     def is_specialcode(self):
-        return len(self.specialcode_id) > 0
+        return self.specialcode_id is not None
 
     def specialcode_present(self, id):
-        return id == self.specialcode_id
+        return id == str(self.specialcode_id)
 
     def del_specialcode(self):
-        self.specialcode_id = ''
+        self.specialcode_id = None
 
         return True
 
@@ -353,15 +382,63 @@ class DataModel:
 
         if self.status == 2:
             if self.specialcode_present(id):
+                self.set_doc_works_status('work')
+
                 res = self.del_specialcode()
             else:
+                self.set_doc_works_status('paused')
+
                 res = self.add_specialcode(id)
         elif self.status == 3:
             if self.specialcode_present(id):
+                self.set_doc_works_status('work')
+
                 res = self.del_specialcode()
 
         self.set_status()
 
+        return res
+
+    def is_doc_works(self):
+        return self.work_id is not None
+
+    def add_doc_works(self):
+        res = False
+
+        doc_works = DocumentWorks.new_document()
+        doc_works.id = uuid.uuid4()
+        doc_works.task_id = self.document_id
+        doc_works.status = 'work'
+
+        res = doc_works.save()
+
+        if res is not False:
+            self.work_id = doc_works.id
+
+            res = True
+
+        return res
+
+    def del_doc_works(self):
+        self.work_id = None
+
+        return True
+
+    def set_doc_works_status(self,status):
+        res = False
+
+        if self.work_id:
+            doc_work = DocumentWorks()
+
+            if doc_work.find(self.work_id):
+                doc_work.status = status
+
+                if doc_work.save():
+                    res = True
+                else:
+                    res = False
+            else:
+                self.work_id = None
         return res
 
     def set_status(self):
