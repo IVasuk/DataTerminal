@@ -12,11 +12,15 @@ class MetaData:
         self.meta_type = meta_type
         self.meta_ident = meta_ident
 
-        self.id = None
+        self.reset_requsites_value()
 
     def set_requsites_value(self,o,r):
         for req, col in self.REQUISITES.items():
             setattr(o, req, r[col])
+
+    def reset_requsites_value(self):
+        for req in self.REQUISITES:
+            setattr(self, req, None)
 
     def find(self,row_id):
         res = Dbms.find(self.table_name, row_id)
@@ -98,8 +102,6 @@ class Reference(MetaData):
     def __init__(self, table_name, meta_ident):
         super().__init__(table_name,'Reference',meta_ident)
 
-        self.name = ''
-
 
 class ReferenceOperators(Reference):
     def __init__(self):
@@ -119,11 +121,6 @@ class ReferenceTerminals(Reference):
     def __init__(self):
         super().__init__('dt_terminals','Terminals')
 
-        self.equipment_id = None
-        self.doc_tasks_id = None
-        self.doc_works_id = None
-        self.last_seen = None
-
 
 class ReferenceEquipments(Reference):
     REQUISITES = Reference.REQUISITES.copy()
@@ -132,8 +129,6 @@ class ReferenceEquipments(Reference):
     def __init__(self):
         super().__init__('dt_equipments','Equipments')
 
-        self.line_id = None
-
 
 class Document(MetaData):
     REQUISITES = MetaData.REQUISITES
@@ -141,8 +136,6 @@ class Document(MetaData):
 
     def __init__(self, table_name, meta_ident):
         super().__init__(table_name,'Document',meta_ident)
-
-        self.timestamp = None
 
     @classmethod
     def new_document(cls):
@@ -161,9 +154,6 @@ class DocumentTasks(Document):
     def __init__(self):
         super().__init__('dt_doc_tasks','Tasks')
 
-        self.doc_number = ''
-        self.line_id = None
-
 
 class DocumentWorks(Document):
     REQUISITES = Document.REQUISITES.copy()
@@ -172,6 +162,3 @@ class DocumentWorks(Document):
 
     def __init__(self):
         super().__init__('dt_doc_works','Works')
-
-        self.task_id = None
-        self.status = None

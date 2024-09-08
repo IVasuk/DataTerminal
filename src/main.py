@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import datetime
 import os
-import uuid
 
 import gi
 import threading
@@ -405,7 +404,6 @@ class DataModel:
         res = False
 
         doc_works = DocumentWorks.new_document()
-        doc_works.id = uuid.uuid4()
         doc_works.task_id = self.document_id
         doc_works.status = 'work'
 

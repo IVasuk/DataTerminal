@@ -96,7 +96,7 @@ class PostgresQL:
         res = self.execute_query(sql_str)
 
         if res:
-            self.set_terminal_id(res[0].gen_random_uuid)
+            self.set_terminal_id(res[0]['gen_random_uuid'])
 
         return True
 
