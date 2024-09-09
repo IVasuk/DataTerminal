@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo 'Видалення підписок до глобальної БД'
-python3 dt_dbms.py -r create_subscriptions -n local -ap [адреса глобальної БД] -pp [порт глобальної БД]
+python3 dt_dbms.py -r delete_subscriptions -n local -ap [адреса глобальної БД] -pp [порт глобальної БД]
 
 echo 'Видалення реплікацій з глобальної БД'
 python3 dt_dbms.py -r pop_replications -n local -ra [адреса глобальної БД] -rp [порт глобальної БД] -ap [адреса публікації для як її бачить глобальна БД] -pp [порт публікації для як його бачить глобальна БД]
