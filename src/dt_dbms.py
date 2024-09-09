@@ -1,4 +1,6 @@
 import argparse
+import uuid
+
 import psycopg2
 import psycopg2.extras
 
@@ -114,19 +116,18 @@ class PostgresQL:
 
     def delete_publications_global(self):
         sql_str = """
-            DROP PUBLICATION IF EXISTS dt_publication_terminal_data;
-            DROP PUBLICATION IF EXISTS dt_publication_terminal_data_delete;
+            DROP PUBLICATION IF EXISTS dt_pub_global;
+            DROP PUBLICATION IF EXISTS dt_pub_ep;
+            DROP PUBLICATION IF EXISTS dt_pub_works;
         """
 
         self.execute_query(sql_str)
 
         return True
 
-    def delete_publications_local(self):
-        sql_str = """
-            DROP PUBLICATION IF EXISTS dt_publication_terminal_data;
-            DROP PUBLICATION IF EXISTS dt_publication_doc_works;
-            DROP PUBLICATION IF EXISTS dt_publication_export_plan;
+    def delete_publications_global_row_filter(self, terminal_id):
+        sql_str = f"""
+            DROP PUBLICATION IF EXISTS dt_pub_{terminal_id};
         """
 
         self.execute_query(sql_str)
@@ -134,40 +135,59 @@ class PostgresQL:
         return True
 
     def create_publications_global(self):
-        sql_str = """
-            CREATE PUBLICATION dt_publication_terminal_data FOR TABLE dt_doc_tasks, dt_terminals, dt_operators, dt_special_codes, dt_equipments;
-            CREATE PUBLICATION dt_publication_terminal_data_delete FOR TABLE dt_export_plan, dt_doc_works, dt_doc_works_items_operators, dt_doc_works_items_intervals WITH (publish = 'delete,truncate');
+        sql_str = f"""
+            CREATE PUBLICATION dt_pub_global FOR TABLE dt_doc_tasks, dt_operators, dt_special_codes, dt_equipments;
+            CREATE PUBLICATION dt_pub_ep FOR TABLE dt_export_plan WITH (publish = 'delete,truncate');
+            CREATE PUBLICATION dt_pub_works FOR TABLE dt_doc_works, dt_doc_works_items_operators, dt_doc_works_items_intervals;
         """
+
+        self.execute_query(sql_str)
+
+        return True
+
+    def create_publications_global_row_filter(self, terminal_id):
+        sql_str = f"""
+            CREATE PUBLICATION dt_pub_{terminal_id} FOR TABLE dt_terminals WHERE (id=%s);
+        """
+
+        self.execute_query(sql_str,[uuid.UUID(f'{terminal_id}')])
+
+        return True
+
+    def delete_publications_local(self):
+        sql_str = """
+            DROP PUBLICATION IF EXISTS dt_pub_data;
+        """
+
         self.execute_query(sql_str)
 
         return True
 
     def create_publications_local(self):
         sql_str = """
-            CREATE PUBLICATION dt_publication_terminal_data FOR TABLE dt_terminals WITH (publish = 'update');
-            CREATE PUBLICATION dt_publication_doc_works FOR TABLE dt_doc_works, dt_doc_works_items_operators, dt_doc_works_items_intervals, dt_terminals;
-            CREATE PUBLICATION dt_publication_export_plan FOR TABLE dt_export_plan WITH (publish = 'insert,update');
+            CREATE PUBLICATION dt_pub_data FOR TABLE dt_terminals, dt_export_plan, dt_doc_works, dt_doc_works_items_operators, dt_doc_works_items_intervals;
         """
+
+        self.execute_query(sql_str)
+
+        return True
+
+    def create_subscriptions_global(self, terminal_id):
+        con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
+            self.adress_pub, self.port_pub, self.user_pub, self.password_pub,
+            self.dbname_pub)
+
+        sql_str = "CREATE SUBSCRIPTION dt_sub_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_pub_data WITH (copy_data = false, origin = none);" % {
+            'con_str': con_str, 'terminal': terminal_id}
+
         self.execute_query(sql_str)
 
         return True
 
     def delete_subscriptions_global(self, terminal_id):
-        sql_str = """
-            DROP SUBSCRIPTION IF EXISTS dt_s_terminal_data_%(terminal)s;
-        """ % {'terminal': terminal_id}
-
-        self.execute_query(sql_str)
-
-        sql_str = """
-            DROP SUBSCRIPTION IF EXISTS dt_s_export_plan_%(terminal)s;
-        """ % {'terminal': terminal_id}
-
-        self.execute_query(sql_str)
-
-        sql_str = """
-            DROP SUBSCRIPTION IF EXISTS dt_s_doc_works_%(terminal)s;
-        """ % {'terminal': terminal_id}
+        sql_str = f"""
+            DROP SUBSCRIPTION IF EXISTS dt_sub_{terminal_id};
+        """
 
         self.execute_query(sql_str)
 
@@ -179,39 +199,29 @@ class PostgresQL:
         if res:
             terminal_id = res.replace('-', '')
 
-            sql_str = """
-                DROP SUBSCRIPTION IF EXISTS dt_s_terminal_data_%(terminal)s;
-            """ % {'terminal': terminal_id}
+            sql_str = f"""
+                DROP SUBSCRIPTION IF EXISTS dt_sub_global_{terminal_id};
+            """
 
             self.execute_query(sql_str)
 
-            sql_str = """
-                DROP SUBSCRIPTION IF EXISTS dt_s_terminal_data_delete_%(terminal)s;
-            """ % {'terminal': terminal_id}
+            sql_str = f"""
+                DROP SUBSCRIPTION IF EXISTS dt_sub_ep_{terminal_id};
+            """
 
             self.execute_query(sql_str)
 
-        return True
+            sql_str = f"""
+                DROP SUBSCRIPTION IF EXISTS dt_sub_works_{terminal_id};
+            """
 
-    def create_subscriptions_global(self, terminal_id):
-        con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
-            self.adress_pub, self.port_pub, self.user_pub, self.password_pub,
-            self.dbname_pub)
+            self.execute_query(sql_str)
 
-        sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data WITH (copy_data = false, origin = none);" % {
-            'con_str': con_str, 'terminal': terminal_id}
+            sql_str = f"""
+                DROP SUBSCRIPTION IF EXISTS dt_sub_{terminal_id};
+            """
 
-        self.execute_query(sql_str)
-
-        sql_str = "CREATE SUBSCRIPTION dt_s_doc_works_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_doc_works WITH (copy_data = false, origin = none);" % {
-            'con_str': con_str, 'terminal': terminal_id}
-
-        self.execute_query(sql_str)
-
-        sql_str = "CREATE SUBSCRIPTION dt_s_export_plan_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_export_plan WITH (copy_data = false, origin = none);" % {
-            'con_str': con_str, 'terminal': terminal_id}
-
-        self.execute_query(sql_str)
+            self.execute_query(sql_str)
 
         return True
 
@@ -224,25 +234,41 @@ class PostgresQL:
             con_str = "host=%s port=%s user=%s password=%s dbname=%s" % (
             self.adress_pub, self.port_pub, self.user_pub, self.password_pub, self.dbname_pub)
 
-            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data WITH (copy_data = true, origin = none);" % {
-                'con_str': con_str, 'terminal': terminal_id}
+            sql_str = f"""
+                CREATE SUBSCRIPTION dt_sub_global_{terminal_id} CONNECTION '{con_str}' PUBLICATION dt_pub_global WITH (copy_data = true, origin = none);
+            """
 
             self.execute_query(sql_str)
 
-            sql_str = "CREATE SUBSCRIPTION dt_s_terminal_data_delete_%(terminal)s CONNECTION '%(con_str)s' PUBLICATION dt_publication_terminal_data_delete WITH (copy_data = true, origin = none);" % {
-                'con_str': con_str, 'terminal': terminal_id}
+            sql_str = f"""
+                CREATE SUBSCRIPTION dt_sub_ep_{terminal_id} CONNECTION '{con_str}' PUBLICATION dt_pub_ep WITH (copy_data = false, origin = none);
+            """
+
+            self.execute_query(sql_str)
+
+            sql_str = f"""
+                CREATE SUBSCRIPTION dt_sub_works_{terminal_id} CONNECTION '{con_str}' PUBLICATION dt_pub_works WITH (copy_data = false, origin = none);
+            """
+
+            self.execute_query(sql_str)
+
+            sql_str = f"""
+                CREATE SUBSCRIPTION dt_sub_{terminal_id} CONNECTION '{con_str}' PUBLICATION dt_pub_{terminal_id} WITH (copy_data = false, origin = none);
+            """
 
             self.execute_query(sql_str)
 
         return True
 
-    def push_subscriptions_to_global(self, **kwargs):
+    def push_replications_to_global(self, **kwargs):
         res = self.get_terminal_id()
 
         if res:
-            dbms = PostgresQL(**kwargs)
+            dbms = get_new_dbms(**kwargs)
 
             dbms.connect()
+
+            dbms.create_publications_global_row_filter(res.replace('-', ''))
 
             dbms.create_subscriptions_global(res.replace('-', ''))
 
@@ -250,13 +276,15 @@ class PostgresQL:
 
         return True
 
-    def pop_subscriptions_from_global(self, **kwargs):
+    def pop_replications_from_global(self, **kwargs):
         res = self.get_terminal_id()
 
         if res:
-            dbms = PostgresQL(**kwargs)
+            dbms = get_new_dbms(**kwargs)
 
             dbms.connect()
+
+            dbms.delete_publications_global_row_filter(res.replace('-', ''))
 
             dbms.delete_subscriptions_global(res.replace('-', ''))
 
@@ -540,7 +568,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-r', '--run', required=True, type=str, default='publisher',
                         choices=['delete_subscriptions', 'delete_publications', 'create_publications',
-                                 'create_subscriptions', 'push_subscriptions', 'pop_subscriptions', 'create_tables',
+                                 'create_subscriptions', 'push_replications', 'pop_replications', 'create_tables',
                                  'create_default_terminal'])
     parser.add_argument('-n', '--node', required=True, type=str, default='local', choices=['local', 'global'])
     parser.add_argument('-t', '--terminal', required=False, type=str, default='')
@@ -599,10 +627,10 @@ def main():
                     else:
                         print(
                             'При створенні підписки в глобальній базі даних необхідно вказати унікальну назву терміналу (ключ -t)')
-        case 'push_subscriptions':
+        case 'push_replications':
             match namespace.node:
                 case 'local':
-                    dbms.push_subscriptions_to_global(adress=namespace.adress_remote, port=namespace.port_remote,
+                    dbms.push_replications_to_global(adress=namespace.adress_remote, port=namespace.port_remote,
                                                       dbname=namespace.dbname_remote, user=namespace.user_remote,
                                                       password=namespace.password_remote,
                                                       adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
@@ -615,10 +643,10 @@ def main():
                                                      adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
                                                      dbname_pub=namespace.dbname_pub, user_pub=namespace.user_pub,
                                                      password_pub=namespace.password_pub)
-        case 'pop_subscriptions':
+        case 'pop_replications':
             match namespace.node:
                 case 'local':
-                    dbms.pop_subscriptions_from_global(adress=namespace.adress_remote, port=namespace.port_remote,
+                    dbms.pop_replications_from_global(adress=namespace.adress_remote, port=namespace.port_remote,
                                                        dbname=namespace.dbname_remote, user=namespace.user_remote,
                                                        password=namespace.password_remote,
                                                        adress_pub=namespace.adress_pub, port_pub=namespace.port_pub,
