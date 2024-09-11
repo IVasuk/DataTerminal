@@ -4,8 +4,6 @@ import uuid
 import psycopg2
 import psycopg2.extras
 
-#from psycopg2.extras import NamedTupleCursor
-
 
 def print_ex(ex):
     print(type(ex))
@@ -118,7 +116,6 @@ class PostgresQL:
         sql_str = """
             DROP PUBLICATION IF EXISTS dt_pub_global;
             DROP PUBLICATION IF EXISTS dt_pub_ep;
-            DROP PUBLICATION IF EXISTS dt_pub_works;
         """
 
         self.execute_query(sql_str)
@@ -138,7 +135,6 @@ class PostgresQL:
         sql_str = f"""
             CREATE PUBLICATION dt_pub_global FOR TABLE dt_doc_tasks, dt_operators, dt_special_codes, dt_equipments;
             CREATE PUBLICATION dt_pub_ep FOR TABLE dt_export_plan WITH (publish = 'delete,truncate');
-            CREATE PUBLICATION dt_pub_works FOR TABLE dt_doc_works, dt_doc_works_items_operators, dt_doc_works_items_intervals;
         """
 
         self.execute_query(sql_str)
@@ -212,12 +208,6 @@ class PostgresQL:
             self.execute_query(sql_str)
 
             sql_str = f"""
-                DROP SUBSCRIPTION IF EXISTS dt_sub_works_{terminal_id};
-            """
-
-            self.execute_query(sql_str)
-
-            sql_str = f"""
                 DROP SUBSCRIPTION IF EXISTS dt_sub_{terminal_id};
             """
 
@@ -242,12 +232,6 @@ class PostgresQL:
 
             sql_str = f"""
                 CREATE SUBSCRIPTION dt_sub_ep_{terminal_id} CONNECTION '{con_str}' PUBLICATION dt_pub_ep WITH (copy_data = false, origin = none);
-            """
-
-            self.execute_query(sql_str)
-
-            sql_str = f"""
-                CREATE SUBSCRIPTION dt_sub_works_{terminal_id} CONNECTION '{con_str}' PUBLICATION dt_pub_works WITH (copy_data = false, origin = none);
             """
 
             self.execute_query(sql_str)
@@ -316,22 +300,22 @@ class PostgresQL:
 
     def create_tables(self):
         sql_str = """
+            DROP TRIGGER IF EXISTS dt_set_status ON dt_doc_tasks CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_doc_works CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_doc_tasks CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_operators CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_terminals CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_special_codes CASCADE;
+            DROP TRIGGER IF EXISTS dt_set_id ON dt_equipments CASCADE;
             DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_works CASCADE;
             DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_works_items_operators CASCADE;
             DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_works_items_intervals CASCADE;
-            DROP TRIGGER IF EXISTS dt_set_row_number ON dt_doc_works_items_operators CASCADE;
             DROP TRIGGER IF EXISTS dt_reorder_row_number ON dt_doc_works_items_operators CASCADE;
-            DROP TRIGGER IF EXISTS dt_set_row_number ON dt_doc_works_items_intervals CASCADE;
             DROP TRIGGER IF EXISTS dt_reorder_row_number ON dt_doc_works_items_intervals CASCADE;
 
+            DROP FUNCTION IF EXISTS dt_set_status() CASCADE;
             DROP FUNCTION IF EXISTS dt_set_id() CASCADE;
             DROP FUNCTION IF EXISTS dt_export_plan() CASCADE;
-            DROP FUNCTION IF EXISTS dt_set_row_number() CASCADE;
             DROP FUNCTION IF EXISTS dt_reorder_row_number() CASCADE;
 
             DROP TABLE IF EXISTS dt_export_plan CASCADE;
@@ -369,7 +353,8 @@ class PostgresQL:
             id uuid PRIMARY KEY,
             doc_timestamp timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
             doc_number varchar(12) NOT NULL UNIQUE,
-            line_id uuid);
+            line_id uuid,
+            status boolean DEFAULT False NOT NULL);
 
             CREATE TABLE dt_doc_works (
             id uuid PRIMARY KEY,
@@ -395,9 +380,9 @@ class PostgresQL:
             CREATE TABLE dt_terminals (
             id uuid PRIMARY KEY,
             name varchar(120) NOT NULL,
-            dt_equipments_id uuid references dt_equipments(id) DEFAULT NULL,
-            dt_doc_tasks_id uuid references dt_doc_tasks(id) DEFAULT NULL,
-            dt_doc_works_id uuid references dt_doc_works(id) DEFAULT NULL,
+            dt_equipments_id uuid references dt_equipments(id) ON DELETE RESTRICT DEFAULT NULL,
+            dt_doc_tasks_id uuid references dt_doc_tasks(id) ON DELETE RESTRICT DEFAULT NULL,
+            dt_doc_works_id uuid references dt_doc_works(id) ON DELETE RESTRICT DEFAULT NULL,
             last_seen timestamp with time zone DEFAULT NULL);
 
             CREATE TABLE dt_export_plan (
@@ -427,30 +412,6 @@ class PostgresQL:
 
             CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE OR DELETE ON dt_doc_works_items_intervals
             FOR EACH ROW EXECUTE PROCEDURE dt_export_plan();
-
-            CREATE OR REPLACE FUNCTION dt_set_row_number() RETURNS trigger AS $dt_set_row_number$
-            DECLARE
-              ids RECORD;
-            BEGIN
-              FOR ids IN EXECUTE 'SELECT max(position) AS max_pos FROM '|| TG_TABLE_NAME ||' WHERE id=$1' USING NEW.id LOOP
-                IF ids.max_pos IS NOT NULL THEN
-                  NEW.position := ids.max_pos+1;
-                END IF;
-              END LOOP;
-
-              IF NEW.position IS NULL THEN
-                NEW.position := 1;
-              END IF;
-
-              RETURN NEW;
-            END;
-            $dt_set_row_number$ LANGUAGE plpgsql;
-
-            CREATE TRIGGER dt_set_row_number BEFORE INSERT ON dt_doc_works_items_operators
-            FOR EACH ROW EXECUTE PROCEDURE dt_set_row_number();          
-
-            CREATE TRIGGER dt_set_row_number BEFORE INSERT ON dt_doc_works_items_intervals
-            FOR EACH ROW EXECUTE PROCEDURE dt_set_row_number();
 
             CREATE OR REPLACE FUNCTION dt_reorder_row_number() RETURNS trigger AS $dt_reorder_row_number$
             DECLARE
@@ -497,6 +458,23 @@ class PostgresQL:
 
             CREATE TRIGGER dt_set_id BEFORE INSERT ON dt_equipments
             FOR EACH ROW EXECUTE PROCEDURE dt_set_id();
+
+            CREATE OR REPLACE FUNCTION dt_set_status() RETURNS trigger AS $dt_set_status$
+            DECLARE
+              ids RECORD;
+            BEGIN
+              IF NEW.status = 'complete' THEN
+                    EXECUTE 'UPDATE dt_doc_tasks set status = True WHERE (id=$1)' USING NEW.dt_doc_tasks_id;
+              END IF;
+
+              RETURN NEW;
+            END;
+            $dt_set_status$ LANGUAGE plpgsql;
+
+            CREATE TRIGGER dt_set_status AFTER INSERT OR UPDATE ON dt_doc_works
+            FOR EACH ROW EXECUTE PROCEDURE dt_set_status();
+            
+            ALTER TABLE dt_doc_works ENABLE ALWAYS TRIGGER dt_set_status;
         """
 
         self.execute_query(sql_str)
@@ -534,13 +512,10 @@ class PostgresQL:
 
         return self.execute_query(sql_str, values)
 
-    def find(self, table_name, value):
-        return self.select_and(table_name, {'id': value})
-
-    def find_by_requisite(self, table_name, args=None):
+    def find(self, table_name, args):
         return self.select_and(table_name, args)
 
-    def insert_update(self,table_name,requisites={}):
+    def insert_update(self,table_name, requisites={}, conflict=[]):
         sql_str = 'insert into ' + table_name
 
         cols = []
@@ -555,20 +530,24 @@ class PostgresQL:
 
         sql_str += '('+','.join(cols)+') VALUES ('+','.join(['%s']*len(vals))+')'
 
-        if len(columns_update) > 0:
-            sql_str += ' ON CONFLICT (id) DO UPDATE SET '+','.join(columns_update)
+        if len(conflict) > 0:
+            sql_str += ' ON CONFLICT ('+','.join(conflict)+') DO UPDATE SET '+','.join(columns_update)
             vals = vals*2
 
         sql_str += ';'
 
         return self.execute_query(sql_str, vals)
 
+    def items_count(self, table_name, value):
+        sql_str = f'SELECT max(position) AS max_pos FROM {table_name} WHERE id=%s'
+
+        return self.execute_query(sql_str, [value])
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-r', '--run', required=True, type=str, default='publisher',
-                        choices=['delete_subscriptions', 'delete_publications', 'create_publications',
-                                 'create_subscriptions', 'push_replications', 'pop_replications', 'create_tables',
+                        choices=['delete_subscriptions', 'delete_publications', 'delete_publications_row_filter', 'create_publications',
+                                 'create_publications_row_filter', 'create_subscriptions', 'push_replications', 'pop_replications', 'create_tables',
                                  'create_default_terminal'])
     parser.add_argument('-n', '--node', required=True, type=str, default='local', choices=['local', 'global'])
     parser.add_argument('-t', '--terminal', required=False, type=str, default='')
@@ -617,6 +596,12 @@ def main():
                     dbms.delete_publications_local()
                 case 'global':
                     dbms.delete_publications_global()
+        case 'delete_publications_row_filter':
+            match namespace.node:
+                case 'local':
+                    print('Видаляти публікації з фільтром по строках можна тільки в глобальній БД')
+                case 'global':
+                    dbms.delete_publications_global_row_filter(namespace.terminal)
         case 'create_subscriptions':
             match namespace.node:
                 case 'local':
@@ -665,6 +650,12 @@ def main():
                     dbms.create_publications_local()
                 case 'global':
                     dbms.create_publications_global()
+        case 'create_publications_row_filter':
+            match namespace.node:
+                case 'local':
+                    print('Створювати публікації з фільтром по строках можна тільки в глобальній БД')
+                case 'global':
+                    dbms.create_publications_global_row_filter(namespace.terminal)
         case 'create_tables':
             if len(namespace.terminal) > 0:
                 dbms.set_terminal_id(namespace.terminal)

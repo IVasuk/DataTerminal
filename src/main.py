@@ -15,7 +15,7 @@ from gi.repository import Gdk
 from gi.repository import GLib
 
 from src.metadata import MetaData, ReferenceOperators, ReferenceSpecialCodes, DocumentTasks, ReferenceTerminals, \
-    ReferenceEquipments, DocumentWorks
+    ReferenceEquipments, DocumentWorks, DocumentWorksItemsOperators, DocumentWorksItemsIntervals
 
 CURRDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -115,12 +115,12 @@ class BarCodeObservable():
         if len(self.barcode) != 0:
             buf = f"{int(''.join(self.barcode)):032x}"
 
-            # if len(self.barcode) == 4:
-            #     buf = f"{int('253918044252158560805864202416401890377'):032x}"
-            # elif len(self.barcode) == 5:
-            #     buf = f"{int('7471756218828323394953150302038485985'):032x}"
-            # elif len(self.barcode) == 6:
-            #     buf = f"{int('92565788095212091768228553311202794780'):032x}"
+            if len(self.barcode) == 4:
+                buf = f"{int('253918044252158560805864202416401890377'):032x}"
+            elif len(self.barcode) == 5:
+                buf = f"{int('7471756218828323394953150302038485985'):032x}"
+            elif len(self.barcode) == 6:
+                buf = f"{int('92565788095212091768228553311202794780'):032x}"
 
             id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
@@ -220,6 +220,7 @@ class DataModel:
         self.status = 0
         self.terminal_id = None
         self.work_id = None
+        self.current_interval = None
 
     def set_starttime(self):
         self.start_time = time.time()
@@ -297,7 +298,7 @@ class DataModel:
 
                             doc_works = DocumentWorks()
 
-                            docs = doc_works.find_by_requsite('task_id', doc_tasks.id)
+                            docs = doc_works.find_by_requisite('task_id', doc_tasks.id)
 
                             if docs:
                                 for doc in docs:
@@ -412,12 +413,31 @@ class DataModel:
         if res is not False:
             self.work_id = doc_works.id
 
-            res = True
+            for operator in self.operators:
+                item = doc_works.add_item(DocumentWorksItemsOperators.META_IDENT)
 
+                item.operator_id = operator
+
+                if item.save() is False:
+                    res = False
+
+                    break
+
+            if res:
+                item = doc_works.add_item(DocumentWorksItemsIntervals.META_IDENT)
+                item.begin = datetime.datetime.now()
+
+                if item.save() is False:
+                    self.current_interval = None
+
+                    res = False
+                else:
+                    self.current_interval = item.position
         return res
 
     def del_doc_works(self):
         self.work_id = None
+        self.current_interval = None
 
         return True
 
@@ -428,14 +448,37 @@ class DataModel:
             doc_work = DocumentWorks()
 
             if doc_work.find(self.work_id):
-                doc_work.status = status
+                if self.current_interval:
+                    items = doc_work.get_item(DocumentWorksItemsIntervals.META_IDENT,self.current_interval)
 
-                if doc_work.save():
-                    res = True
-                else:
-                    res = False
+                    if items:
+                        items.end = datetime.datetime.now()
+
+                        if doc_work.status == 'work':
+                            items.work_interval = int((items.end - items.begin).total_seconds())
+                        elif doc_work.status == 'paused':
+                            items.stop_interval = int((items.end - items.begin).total_seconds())
+
+                        if items.save():
+                            res = True
+
+                if res and (status in ('work','paused')):
+                    items = doc_work.add_item(DocumentWorksItemsIntervals.META_IDENT)
+                    items.begin = datetime.datetime.now()
+
+                    if items.save():
+                        self.current_interval = items.position
+
+                        res = True
+
+                if res:
+                    doc_work.status = status
+
+                    if doc_work.save():
+                        res = True
             else:
-                self.work_id = None
+                self.del_doc_works()
+
         return res
 
     def set_status(self):
@@ -535,15 +578,14 @@ def update_indicator(label,dbms=None):
         else:
             label.set_text(time.strftime("%H:%M:%S"))
 
-
-        if dbms:
-            ref_terminals = ReferenceTerminals()
-
-            if ref_terminals.find(MetaData.TERMINAL_ID):
-                ref_terminals.doc_tasks_id = DATAMODEL.document_id
-                ref_terminals.doc_works_id = DATAMODEL.work_id
-                ref_terminals.last_seen = datetime.datetime.now()
-                ref_terminals.save()
+        # if dbms:
+        #     ref_terminals = ReferenceTerminals()
+        #
+        #     if ref_terminals.find(MetaData.TERMINAL_ID):
+        #         ref_terminals.doc_tasks_id = DATAMODEL.document_id
+        #         ref_terminals.doc_works_id = DATAMODEL.work_id
+        #         ref_terminals.last_seen = datetime.datetime.now()
+        #         ref_terminals.save()
     except:
         Gtk.main_quit()
 
@@ -606,11 +648,8 @@ def main():
 
     rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'), dbms_thread)  # it auto-starts, no need of rt.start()
 
-    MetaData.set_adress(namespace.adress)
-    MetaData.set_port(namespace.port)
-    MetaData.set_dbname(namespace.dbname)
-    MetaData.set_user(namespace.user)
-    MetaData.set_password(namespace.password)
+    MetaData.set_connection_params(adress=namespace.adress, port=namespace.port, dbname=namespace.dbname, user=namespace.user,
+                          password=namespace.password)
 
     try:
         MetaData.connect()
