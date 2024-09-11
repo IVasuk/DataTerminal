@@ -384,6 +384,10 @@ class PostgresQL:
             dt_doc_tasks_id uuid references dt_doc_tasks(id) ON DELETE RESTRICT DEFAULT NULL,
             dt_doc_works_id uuid references dt_doc_works(id) ON DELETE RESTRICT DEFAULT NULL,
             last_seen timestamp with time zone DEFAULT NULL);
+            
+            ALTER TABLE dt_doc_works ADD COLUMN
+                dt_terminals_id uuid references dt_terminals(id) ON DELETE RESTRICT NOT NULL;
+
 
             CREATE TABLE dt_export_plan (
             id uuid NOT NULL,
@@ -395,9 +399,9 @@ class PostgresQL:
             CREATE OR REPLACE FUNCTION dt_export_plan() RETURNS trigger AS $dt_export_plan$
             BEGIN
                 IF (TG_OP = 'INSERT') THEN
-                    INSERT INTO dt_export_plan (id,table_name,action,action_timestamp) VALUES (NEW.id,TG_TABLE_NAME,TG_OP,now()) ON CONFLICT (id,table_name) DO UPDATE SET action=TG_OP,action_timestamp=now();
+                    INSERT INTO public.dt_export_plan (id,table_name,action,action_timestamp) VALUES (NEW.id,TG_TABLE_NAME,TG_OP,now()) ON CONFLICT (id,table_name) DO UPDATE SET action=TG_OP,action_timestamp=now();
                 ELSE
-                    INSERT INTO dt_export_plan (id,table_name,action,action_timestamp) VALUES (OLD.id,TG_TABLE_NAME,TG_OP,now()) ON CONFLICT (id,table_name) DO UPDATE SET action=TG_OP,action_timestamp=now();
+                    INSERT INTO public.dt_export_plan (id,table_name,action,action_timestamp) VALUES (OLD.id,TG_TABLE_NAME,TG_OP,now()) ON CONFLICT (id,table_name) DO UPDATE SET action=TG_OP,action_timestamp=now();
                 END IF;
 
                 RETURN NULL;
@@ -463,8 +467,8 @@ class PostgresQL:
             DECLARE
               ids RECORD;
             BEGIN
-              IF NEW.status = 'complete' THEN
-                    EXECUTE 'UPDATE dt_doc_tasks set status = True WHERE (id=$1)' USING NEW.dt_doc_tasks_id;
+              IF NEW.doc_status = 'complete' THEN
+                    EXECUTE 'UPDATE public.dt_doc_tasks set status = True WHERE (id=$1)' USING NEW.dt_doc_tasks_id;
               END IF;
 
               RETURN NEW;

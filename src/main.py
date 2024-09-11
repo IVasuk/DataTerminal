@@ -115,12 +115,12 @@ class BarCodeObservable():
         if len(self.barcode) != 0:
             buf = f"{int(''.join(self.barcode)):032x}"
 
-            if len(self.barcode) == 4:
-                buf = f"{int('253918044252158560805864202416401890377'):032x}"
-            elif len(self.barcode) == 5:
-                buf = f"{int('7471756218828323394953150302038485985'):032x}"
-            elif len(self.barcode) == 6:
-                buf = f"{int('92565788095212091768228553311202794780'):032x}"
+            # if len(self.barcode) == 4:
+            #     buf = f"{int('40560885950178682205584401516408293367'):032x}"
+            # elif len(self.barcode) == 5:
+            #     buf = f"{int('172577255543730360131063227403435303458'):032x}"
+            # elif len(self.barcode) == 6:
+            #     buf = f"{int('304760161965266781691261650661592011400'):032x}"
 
             id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
@@ -406,6 +406,7 @@ class DataModel:
 
         doc_works = DocumentWorks.new_document()
         doc_works.task_id = self.document_id
+        doc_works.terminal_id = MetaData.TERMINAL_ID
         doc_works.status = 'work'
 
         res = doc_works.save()
@@ -452,7 +453,7 @@ class DataModel:
                     items = doc_work.get_item(DocumentWorksItemsIntervals.META_IDENT,self.current_interval)
 
                     if items:
-                        items.end = datetime.datetime.now()
+                        items.end = datetime.datetime.now(tz=items.begin.tzinfo)
 
                         if doc_work.status == 'work':
                             items.work_interval = int((items.end - items.begin).total_seconds())
