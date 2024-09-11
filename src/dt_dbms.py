@@ -307,6 +307,7 @@ class PostgresQL:
             DROP TRIGGER IF EXISTS dt_set_id ON dt_terminals CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_special_codes CASCADE;
             DROP TRIGGER IF EXISTS dt_set_id ON dt_equipments CASCADE;
+            DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_tasks CASCADE;
             DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_works CASCADE;
             DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_works_items_operators CASCADE;
             DROP TRIGGER IF EXISTS dt_export_plan ON dt_doc_works_items_intervals CASCADE;
@@ -408,13 +409,16 @@ class PostgresQL:
             END;
             $dt_export_plan$ LANGUAGE plpgsql;
 
-            CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE OR DELETE ON dt_doc_works
+            CREATE TRIGGER dt_export_plan AFTER UPDATE ON dt_doc_tasks
             FOR EACH ROW EXECUTE PROCEDURE dt_export_plan();
 
-            CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE OR DELETE ON dt_doc_works_items_operators
+            CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE ON dt_doc_works
             FOR EACH ROW EXECUTE PROCEDURE dt_export_plan();
 
-            CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE OR DELETE ON dt_doc_works_items_intervals
+            CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE ON dt_doc_works_items_operators
+            FOR EACH ROW EXECUTE PROCEDURE dt_export_plan();
+
+            CREATE TRIGGER dt_export_plan AFTER INSERT OR UPDATE ON dt_doc_works_items_intervals
             FOR EACH ROW EXECUTE PROCEDURE dt_export_plan();
 
             CREATE OR REPLACE FUNCTION dt_reorder_row_number() RETURNS trigger AS $dt_reorder_row_number$
