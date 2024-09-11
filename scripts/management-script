@@ -2,7 +2,7 @@
 
 DEFAULT_DBMS_ADRESS="localhost"
 DEFAULT_DBMS_PORT="5432"
-DEFAULT_DBMS_DATABASE="dataterminal"
+DEFAULT_DBMS_DBNAME="dataterminal"
 DEFAULT_DBMS_USER="dataterminal"
 DEFAULT_DBMS_PASSWORD="terminal"
 
@@ -36,19 +36,19 @@ set_dbms_port()
         snapctl set dbms.port="$1"
 }
 
-dbms_database()
+dbms_dbname()
 {
-        database="$(snapctl get dbms.database)"
-        if [ -z "$database" ]; then
-        	database="$DEFAULT_DBMS_DATABASE"
-		set_dbms_database "$database"
+        dbname="$(snapctl get dbms.dbname)"
+        if [ -z "$dbname" ]; then
+        	dbname="$DEFAULT_DBMS_DBNAME"
+		set_dbms_dbname "$dbname"
         fi
-        echo "$database"
+        echo "$dbname"
 }
 
-set_dbms_database()
+set_dbms_dbname()
 {
-        snapctl set dbms.database="$1"
+        snapctl set dbms.dbname="$1"
 }
 
 dbms_user()

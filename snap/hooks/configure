@@ -33,18 +33,18 @@ handle_port_config()
         set_dbms_port "$port"
 }
 
-handle_database_config()
+handle_dbname_config()
 {
-        database="$(dbms_database)"
+        dbname="$(dbms_dbname)"
 
         # Validate DBMS database
-        if [ -z "$database" ]; then
+        if [ -z "$dbname" ]; then
                 echo "database name can't be empty" >&2
                 return 1
         fi
 
         # run function from management script
-        set_dbms_database "$database"
+        set_dbms_dbname "$dbname"
 }
 
 handle_user_config()
@@ -77,7 +77,7 @@ handle_password_config()
 
 handle_port_config
 handle_adress_config
-handle_database_config
+handle_dbname_config
 handle_user_config
 handle_password_config
 

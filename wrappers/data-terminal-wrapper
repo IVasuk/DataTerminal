@@ -5,8 +5,8 @@
 
 DBMS_ADRESS="$(dbms_adress)"
 DBMS_PORT="$(dbms_port)"
-DBMS_DATABASE="$(dbms_database)"
+DBMS_DBNAME="$(dbms_dbname)"
 DBMS_USER="$(dbms_user)"
 DBMS_PASSWORD="$(dbms_password)"
 
-"$SNAP/bin/data-terminal" -a "$DBMS_ADRESS" -p "$DBMS_PORT" -d "$DBMS_DATABASE" -u "$DBMS_USER" -pas "$DBMS_PASSWORD"
+"$SNAP/bin/data-terminal" -a "$DBMS_ADRESS" -p "$DBMS_PORT" -d "$DBMS_DBNAME" -u "$DBMS_USER" -pas "$DBMS_PASSWORD"
