@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import datetime
 import os
+from os import terminal_size
 
 import gi
 import threading
@@ -26,10 +27,32 @@ class BarCodeObservable():
         self.status = False
         self.barcode = []
         self.observers = []
+        self.reading_status = False
 
     def set_label(self, label):
         self.label = label
 
+    def set_label_text(self):
+        if self.label:
+            label_text = ''
+            match DATAMODEL.status:
+                case -3:
+                    label_text = 'Перевірте структуру бази даних'
+                case -2:
+                    label_text = 'Перевірте довідник терміналів'
+                case -1:
+                    label_text = 'Скануйте код обладнання'
+                case 0:
+                    label_text = 'Скануйте свій код'
+                case 1:
+                    label_text = 'Для початку операції скануйте код документа'
+                case 2:
+                    label_text = 'Для завершення операції скануйте код документа'
+                case 3:
+                    label_text = 'Для продовження операції скануйте спеціальний код'
+
+            self.label.set_text(label_text)
+    #
     def set_label_time_background(self):
         sc = (self.label_time.get_style_context())
 
@@ -48,7 +71,7 @@ class BarCodeObservable():
                 sc.remove_class('red')
 
             sc.add_class('green')
-        elif DATAMODEL.status == 3:
+        elif DATAMODEL.status in (-3,-2,-1,3):
             css_str = """
              #label_time {
                  background: #FF0000;
@@ -121,6 +144,8 @@ class BarCodeObservable():
             #     buf = f"{int('50051588618451986875875055609619462351'):032x}"
             # elif len(self.barcode) == 6:
             #     buf = f"{int('262841554558546224172984133504635402973'):032x}"
+            # elif len(self.barcode) == 7:
+            #     buf = f"{int('109588427585663573828031443086845339008'):032x}"
 
             id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
@@ -157,19 +182,7 @@ class BarCodeObservable():
         self.reading_status = False
         self.barcode.clear()
 
-        if self.label:
-            label_text = ''
-            match DATAMODEL.status:
-                case 0:
-                    label_text = 'Скануйте свій код'
-                case 1:
-                    label_text = 'Для початку операції скануйте код документа'
-                case 2:
-                    label_text = 'Для завершення операції скануйте код документа'
-                case 3:
-                    label_text = 'Для продовження операції скануйте спеціальний код'
-
-            self.label.set_text(label_text)
+        self.set_label_text()
 
 
 class BarCodeObserver:
@@ -209,6 +222,12 @@ class SpecialCodeObserver(BarCodeObserver):
 
         return res
 
+class EquipmentsObserver(BarCodeObserver):
+    def update(self, barcode):
+        res = DATAMODEL.set_equipments_id(barcode)
+
+        return res
+
 
 class DataModel:
     def __init__(self):
@@ -217,10 +236,11 @@ class DataModel:
         self.operators = {}
         self.specialcode_id = None
         self.start_time = time.time()
-        self.status = 0
-        self.terminal_id = None
+        self.status = -3
         self.work_id = None
         self.current_interval = None
+        self.terminal_id = None
+        self.equipments_id = None
 
     def set_starttime(self):
         self.start_time = time.time()
@@ -261,13 +281,13 @@ class DataModel:
     def set_operator(self, id):
         res = False
 
-        if self.status < 2:
+        if self.status in (0, 1):
             if self.operator_present(id):
                 res = self.del_operator(id)
             else:
                 res = self.add_operator(id)
 
-            self.set_status()
+        self.set_status()
 
         return res
 
@@ -398,6 +418,80 @@ class DataModel:
 
         return res
 
+    def add_equipments_id(self, id):
+        res = False
+
+        ref_equipments = ReferenceEquipments()
+
+        if ref_equipments.find(id):
+            self.equipments_id = ref_equipments.id
+
+            res = True
+        else:
+            res = False
+
+        return res
+
+    def is_equipments_id(self):
+        return self.equipments_id is not None
+
+    def equipments_id_present(self, id):
+        return id == str(self.equipments_id)
+
+    def set_equipments_id(self, id):
+        res = False
+
+        if (self.status in (-1, 0)) and self.is_terminal_id():
+            if self.equipments_id_present(id):
+                res = True
+            elif self.add_equipments_id(id):
+                ref_terminals = ReferenceTerminals()
+
+                if ref_terminals.find(self.terminal_id):
+                    ref_terminals.equipment_id = self.equipments_id
+
+                    if ref_terminals.save():
+                        res = True
+                else:
+                    self.del_equipments_id()
+
+        self.set_status()
+
+        return res
+
+    def add_terminal_id(self, id):
+        res = False
+
+        ref_terminals = ReferenceTerminals()
+
+        if ref_terminals.find(id):
+            self.terminal_id = ref_terminals.id
+
+            res = True
+        else:
+            res = False
+
+        return res
+
+    def is_terminal_id(self):
+        return self.terminal_id is not None
+
+    def terminal_id_present(self, id):
+        return id == str(self.terminal_id)
+
+    def set_terminal_id(self, id):
+        res = False
+
+        if self.status in (-3, -2, -1, 0):
+            ref_terminals = ReferenceTerminals()
+
+            if ref_terminals.find(id):
+                self.add_terminal_id(ref_terminals.id)
+
+        self.set_status()
+
+        return res
+
     def is_doc_works(self):
         return self.work_id is not None
 
@@ -511,6 +605,15 @@ class DataModel:
                 self.status = 2
 
                 self.set_starttime()
+        elif self.status == -1:
+            if self.is_equipments_id():
+                self.status = 0
+        elif self.status == -2:
+            if self.is_terminal_id():
+                self.status = -1
+        elif self.status == -3:
+            if MetaData.get_terminal_id():
+                self.status = -2
 
         return self.status
 
@@ -579,14 +682,14 @@ def update_indicator(label,dbms=None):
         else:
             label.set_text(time.strftime("%H:%M:%S"))
 
-        # if dbms:
-        #     ref_terminals = ReferenceTerminals()
-        #
-        #     if ref_terminals.find(MetaData.TERMINAL_ID):
-        #         ref_terminals.doc_tasks_id = DATAMODEL.document_id
-        #         ref_terminals.doc_works_id = DATAMODEL.work_id
-        #         ref_terminals.last_seen = datetime.datetime.now()
-        #         ref_terminals.save()
+        if dbms.connected() and DATAMODEL.is_terminal_id():
+            ref_terminals = ReferenceTerminals()
+
+            if ref_terminals.find(DATAMODEL.terminal_id):
+                ref_terminals.doc_tasks_id = DATAMODEL.document_id
+                ref_terminals.doc_works_id = DATAMODEL.work_id
+                ref_terminals.last_seen = datetime.datetime.now()
+                ref_terminals.save()
     except:
         Gtk.main_quit()
 
@@ -610,10 +713,12 @@ def main():
     operator_observer = OperatorsObserver(builder.get_object('label_sername'))
     document_observer = DocumentObserver(builder.get_object('label_document_number'))
     specialcode_observer = SpecialCodeObserver(builder.get_object('label_time'))
+    equipments_observer = EquipmentsObserver(builder.get_object('label_document_number'))
 
     BARCODEPUBLISHER.attach(operator_observer)
     BARCODEPUBLISHER.attach(document_observer)
     BARCODEPUBLISHER.attach(specialcode_observer)
+    BARCODEPUBLISHER.attach(equipments_observer)
 
     css_str = """
     #label_document_number {
@@ -655,7 +760,20 @@ def main():
     try:
         MetaData.connect()
 
-        MetaData.set_terminal_id()
+        if MetaData.set_terminal_id():
+            DATAMODEL.set_status()
+
+            if DATAMODEL.add_terminal_id(MetaData.get_terminal_id()):
+                DATAMODEL.set_status()
+
+                ref_terminals = ReferenceTerminals()
+                if ref_terminals.find(DATAMODEL.terminal_id):
+                    DATAMODEL.add_equipments_id(ref_terminals.equipment_id)
+
+                    DATAMODEL.set_status()
+
+        BARCODEPUBLISHER.set_label_text()
+        BARCODEPUBLISHER.set_label_time_background()
 
         dbms_thread.connect()
 

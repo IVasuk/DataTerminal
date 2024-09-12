@@ -66,8 +66,22 @@ class MetaDataBasic:
 
     @classmethod
     def set_terminal_id(cls):
-        cls.TERMINAL_ID = Dbms.get_terminal_id()
+        res = Dbms.get_terminal_id()
 
+        if res is None:
+            cls.TERMINAL_ID = None
+
+            res = False
+        elif res:
+            cls.TERMINAL_ID = res
+
+            res = True
+
+        return res
+
+    @classmethod
+    def get_terminal_id(cls):
+        return cls.TERMINAL_ID
 
 class MetaData(MetaDataBasic):
     def find(self,row_id):

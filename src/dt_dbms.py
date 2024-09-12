@@ -4,6 +4,7 @@ import uuid
 import psycopg2
 import psycopg2.extras
 
+psycopg2.extras.register_uuid()
 
 def print_ex(ex):
     print(type(ex))
@@ -48,6 +49,17 @@ class PostgresQL:
             self.pg_conn.close()
 
             return True
+        except Exception as ex:
+            print_ex(ex)
+
+            return False
+
+    def connected(self):
+        try:
+            if self.pg_conn.closed == 0:
+                return True
+            else:
+                return False
         except Exception as ex:
             print_ex(ex)
 
@@ -110,7 +122,7 @@ class PostgresQL:
         if res:
             return res[0]['enum_range'][1:-1]
         else:
-            return None
+            return res
 
     def delete_publications_global(self):
         sql_str = """
@@ -675,8 +687,6 @@ def main():
             dbms.create_default_terminal()
 
     dbms.disconnect()
-
-psycopg2.extras.register_uuid()
 
 if __name__ == '__main__':
     main()
