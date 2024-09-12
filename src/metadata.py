@@ -277,7 +277,7 @@ class DocumentWorks(Document):
 
     REQUISITES = Document.REQUISITES.copy()
     REQUISITES['task_id'] = 'dt_doc_tasks_id'
-    REQUISITES['terminal_id'] = 'dt_terminals_id'
+    REQUISITES['equipment_id'] = 'dt_equipments_id'
     REQUISITES['status'] = 'doc_status'
 
     ITEMS_TABLES = {DocumentWorksItemsOperators.META_IDENT: DocumentWorksItemsOperators, DocumentWorksItemsIntervals.META_IDENT: DocumentWorksItemsIntervals}

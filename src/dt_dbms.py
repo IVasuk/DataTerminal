@@ -373,6 +373,7 @@ class PostgresQL:
             id uuid PRIMARY KEY,
             doc_timestamp timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
             dt_doc_tasks_id uuid references dt_doc_tasks(id) ON DELETE CASCADE,
+            dt_equipments_id uuid references dt_equipments(id) ON DELETE RESTRICT NOT NULL,
             doc_status dt_status DEFAULT 'work' NOT NULL);
 
             CREATE TABLE dt_doc_works_items_operators (
@@ -398,10 +399,6 @@ class PostgresQL:
             dt_doc_works_id uuid references dt_doc_works(id) ON DELETE RESTRICT DEFAULT NULL,
             last_seen timestamp with time zone DEFAULT NULL);
             
-            ALTER TABLE dt_doc_works ADD COLUMN
-                dt_terminals_id uuid references dt_terminals(id) ON DELETE RESTRICT NOT NULL;
-
-
             CREATE TABLE dt_export_plan (
             id uuid NOT NULL,
             table_name text NOT NULL,

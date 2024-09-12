@@ -309,7 +309,7 @@ class DataModel:
             if doc_tasks.line_id:
                 ref_terminals = ReferenceTerminals()
 
-                if ref_terminals.find(MetaData.TERMINAL_ID):
+                if ref_terminals.find(self.terminal_id):
                     ref_equipments = ReferenceEquipments()
 
                     if ref_equipments.find(ref_terminals.equipment_id):
@@ -500,7 +500,7 @@ class DataModel:
 
         doc_works = DocumentWorks.new_document()
         doc_works.task_id = self.document_id
-        doc_works.terminal_id = MetaData.TERMINAL_ID
+        doc_works.equipment_id = self.equipments_id
         doc_works.status = 'work'
 
         res = doc_works.save()
