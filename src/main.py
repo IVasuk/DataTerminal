@@ -2,6 +2,7 @@
 import datetime
 import os
 from os import terminal_size
+from threading import Thread
 
 import gi
 import threading
@@ -138,14 +139,14 @@ class BarCodeObservable():
         if len(self.barcode) != 0:
             buf = f"{int(''.join(self.barcode)):032x}"
 
-            # if len(self.barcode) == 4:
-            #     buf = f"{int('266459002272662127066808643765354640580'):032x}"
-            # elif len(self.barcode) == 5:
-            #     buf = f"{int('50051588618451986875875055609619462351'):032x}"
-            # elif len(self.barcode) == 6:
-            #     buf = f"{int('262841554558546224172984133504635402973'):032x}"
-            # elif len(self.barcode) == 7:
-            #     buf = f"{int('109588427585663573828031443086845339008'):032x}"
+            if len(self.barcode) == 4:
+                buf = f"{int('140252029910160719407615654273820222181'):032x}"
+            elif len(self.barcode) == 5:
+                buf = f"{int('242526729503968700121204891150077040947'):032x}"
+            elif len(self.barcode) == 6:
+                buf = f"{int('14855292090638249075626786961853673841'):032x}"
+            elif len(self.barcode) == 7:
+                buf = f"{int('267493451463646028278735803215706623899'):032x}"
 
             id = f'{buf[:8]}-{buf[8:12]}-{buf[12:16]}-{buf[16:20]}-{buf[20:]}'
 
@@ -306,7 +307,7 @@ class DataModel:
         doc_tasks = DocumentTasks()
 
         if doc_tasks.find(id):
-            if doc_tasks.line_id:
+            if doc_tasks.line_id and not doc_tasks.status:
                 ref_terminals = ReferenceTerminals()
 
                 if ref_terminals.find(self.terminal_id):
@@ -690,6 +691,26 @@ def update_indicator(label,dbms=None):
                 ref_terminals.doc_works_id = DATAMODEL.work_id
                 ref_terminals.last_seen = datetime.datetime.now()
                 ref_terminals.save()
+
+            if not DATAMODEL.current_interval is None:
+                RT_MUTEX.acquire()
+
+                doc_works = DocumentWorks()
+
+                if doc_works.find(DATAMODEL.work_id):
+                    items = doc_works.get_item(DocumentWorksItemsIntervals.META_IDENT,DATAMODEL.current_interval)
+
+                    if items:
+                        items.end = datetime.datetime.now(tz=items.begin.tzinfo)
+
+                        if doc_works.status == 'work':
+                            items.work_interval = int((items.end - items.begin).total_seconds())
+                        elif doc_works.status == 'paused':
+                            items.stop_interval = int((items.end - items.begin).total_seconds())
+
+                        items.save()
+
+                RT_MUTEX.release()
     except:
         Gtk.main_quit()
 
@@ -753,6 +774,10 @@ def main():
     dbms_thread = MetaData.get_new_dbms(adress=namespace.adress, port=namespace.port, dbname=namespace.dbname, user=namespace.user, password=namespace.password)
 
     rt = RepeatedTimer(1, update_indicator, builder.get_object('label_time'), dbms_thread)  # it auto-starts, no need of rt.start()
+
+    global RT_MUTEX
+
+    RT_MUTEX = threading.Lock()
 
     MetaData.set_connection_params(adress=namespace.adress, port=namespace.port, dbname=namespace.dbname, user=namespace.user,
                           password=namespace.password)
