@@ -21,7 +21,6 @@
             <property name="label" translatable="yes">Скануйте свій код</property>
             <property name="justify">center</property>
             <property name="wrap">True</property>
-            <property name="ellipsize">start</property>
             <attributes>
               <attribute name="size" value="26000"/>
             </attributes>
