@@ -48,6 +48,8 @@
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="justify">center</property>
+                <property name="wrap">True</property>
+                <property name="wrap-mode">char</property>
                 <attributes>
                   <attribute name="size" value="60000"/>
                 </attributes>
@@ -64,6 +66,8 @@
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="justify">center</property>
+                <property name="wrap">True</property>
+                <property name="wrap-mode">char</property>
                 <attributes>
                   <attribute name="size" value="25000"/>
                 </attributes>
