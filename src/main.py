@@ -131,7 +131,7 @@ class BarCodeObservable():
         self.reading_status = True
         self.barcode.append(value)
 
-        self.label.set_text(''.join(self.barcode))
+#        self.label.set_text(''.join(self.barcode))
 
     def enter_barcode(self):
         res = False
